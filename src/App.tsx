@@ -212,20 +212,68 @@ const Badge = ({ children, variant = "default" }: { children: React.ReactNode, v
 
 // --- Sub-components (defined outside to prevent re-creation on render) ---
 
-const AcceptInviteView = ({ inviteToken, onAcceptSuccess }: { inviteToken: string | null, onAcceptSuccess: () => void }) => {
+const AcceptInviteView = ({ onAcceptSuccess }: { onAcceptSuccess: () => void }) => {
   const [password, setPassword] = useState('');
   const [inviteData, setInviteData] = useState<Invite | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!inviteToken) return;
-    const q = query(collection(db, 'invites'), where('token', '==', inviteToken));
-    getDocs(q).then(snap => {
-      if (!snap.empty) {
-        setInviteData({ id: snap.docs[0].id, ...snap.docs[0].data() } as Invite);
+  const loadInvite = async () => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+
+      if (!token) {
+        setError('No invite token found in the URL.');
+        setLoading(false);
+        return;
       }
-    });
-  }, [inviteToken]);
+
+      const q = query(
+        collection(db, 'invites'),
+        where('token', '==', token)
+      );
+
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        setError('Invite not found. It may have expired or already been used.');
+        setLoading(false);
+        return;
+      }
+
+      const inviteDoc = snapshot.docs[0];
+      const inviteData = inviteDoc.data();
+
+      if (inviteData.status === 'accepted') {
+        setError('This invite has already been used. Please log in instead.');
+        setLoading(false);
+        return;
+      }
+
+      setInviteData({ id: inviteDoc.id, ...inviteData } as Invite);
+      setLoading(false);
+
+    } catch (err: any) {
+      setError('Something went wrong: ' + err.message);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { 
+    loadInvite(); 
+    const timer = setTimeout(() => {
+      setLoading(prevLoading => {
+        if (prevLoading) {
+          setError('Invitation verification timed out (8s). Please check your connection.');
+          return false;
+        }
+        return prevLoading;
+      });
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleAccept = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -258,7 +306,28 @@ const AcceptInviteView = ({ inviteToken, onAcceptSuccess }: { inviteToken: strin
     }
   };
 
-  if (!inviteData) return <div className="p-20 text-center font-mono">Decoding invitation token...</div>;
+  if (error) return (
+    <div className="min-h-screen bg-white flex items-center justify-center p-6 text-center">
+      <div className="space-y-4 max-w-sm">
+        <div className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <h2 className="text-xl font-bold">Access Denied</h2>
+        <p className="text-gray-500 text-sm">{error}</p>
+        <button onClick={() => window.location.href = '/'} className="px-6 py-2 bg-black text-white rounded-xl text-xs font-bold uppercase tracking-widest">Return to Base</button>
+      </div>
+    </div>
+  );
+
+  if (loading) return (
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 gap-4">
+      <div className="w-10 h-10 border-2 border-black/5 border-t-accent rounded-full animate-spin" />
+      <div className="text-center">
+        <p className="text-[10px] font-mono text-black/40 uppercase tracking-[0.3em] mb-1 animate-pulse">Decoding invitation token...</p>
+        <p className="text-[8px] font-mono text-black/20 uppercase tracking-[0.2em]">Authenticating Secure Handshake...</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-6">
@@ -1051,7 +1120,7 @@ export default function App() {
   }
 
   if (activeTab === 'accept-invite') {
-    return <AcceptInviteView inviteToken={inviteToken} onAcceptSuccess={() => setActiveTab('dashboard')} />;
+    return <AcceptInviteView onAcceptSuccess={() => setActiveTab('dashboard')} />;
   }
 
   return (
