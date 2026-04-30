@@ -210,6 +210,458 @@ const Badge = ({ children, variant = "default" }: { children: React.ReactNode, v
   );
 };
 
+// --- Sub-components (defined outside to prevent re-creation on render) ---
+
+const AcceptInviteView = ({ inviteToken, onAcceptSuccess }: { inviteToken: string | null, onAcceptSuccess: () => void }) => {
+  const [password, setPassword] = useState('');
+  const [inviteData, setInviteData] = useState<Invite | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    const q = query(collection(db, 'invites'), where('token', '==', inviteToken));
+    getDocs(q).then(snap => {
+      if (!snap.empty) {
+        setInviteData({ id: snap.docs[0].id, ...snap.docs[0].data() } as Invite);
+      }
+    });
+  }, [inviteToken]);
+
+  const handleAccept = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteData) return;
+    setIsProcessing(true);
+    const loadId = toast.loading('Initializing identity...');
+
+    try {
+      const u = await createUserWithEmailAndPassword(auth, inviteData.email, password);
+      const profile: UserProfile = {
+        uid: u.user.uid,
+        email: inviteData.email,
+        name: inviteData.name,
+        department: inviteData.department,
+        role: inviteData.role,
+        assignedClients: [],
+        inviteStatus: 'active',
+        invitedBy: inviteData.invitedBy,
+        createdAt: serverTimestamp()
+      };
+      await setDoc(doc(db, 'users', u.user.uid), profile);
+      await updateDoc(doc(db, 'invites', inviteData.id), { status: 'accepted' });
+      
+      toast.success('Access Granted. Welcome to Myntmore OS.', { id: loadId });
+      onAcceptSuccess();
+    } catch (error) {
+      toast.error('Identity creation failed', { id: loadId });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  if (!inviteData) return <div className="p-20 text-center font-mono">Decoding invitation token...</div>;
+
+  return (
+    <div className="min-h-screen bg-white flex items-center justify-center p-6">
+      <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="w-full max-w-sm">
+        <Card className="p-10 space-y-8">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-black italic tracking-tighter uppercase">ACCESS REQUESTED</h2>
+            <p className="text-gray-400 text-xs font-mono uppercase tracking-widest">Pending verification for {inviteData.name}</p>
+          </div>
+
+          <form onSubmit={handleAccept} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono text-gray-400 uppercase tracking-widest pl-1">Email Authority</label>
+              <input 
+                disabled
+                value={inviteData.email}
+                className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl text-gray-400 font-medium"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono text-gray-400 uppercase tracking-widest pl-1">Define Master Password</label>
+              <input 
+                required
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none focus:ring-2 ring-accent/50"
+                placeholder="••••••••"
+              />
+            </div>
+            <button 
+              type="submit" 
+              disabled={isProcessing}
+              className="w-full py-4 bg-accent text-accent-foreground font-black rounded-xl shadow-xl shadow-accent/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            >
+              SECURE IDENTITY & JOIN
+            </button>
+          </form>
+        </Card>
+      </motion.div>
+    </div>
+  );
+};
+
+const TeamView = ({ allUsers, invites, userId }: { allUsers: UserProfile[], invites: Invite[], userId?: string }) => {
+  const [isInviting, setIsInviting] = useState(false);
+  const [inviteData, setInviteData] = useState({ name: '', email: '', department: 'content' as any });
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const loadId = toast.loading('Sending invitation...');
+    try {
+      const token = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+      await addDoc(collection(db, 'invites'), {
+        ...inviteData,
+        role: 'member',
+        invitedBy: userId,
+        createdAt: serverTimestamp(),
+        status: 'pending',
+        token
+      });
+      toast.success(`Invite link generated: /accept-invite?token=${token}`, { id: loadId, duration: 10000 });
+      setIsInviting(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'invites');
+      toast.error('Failed to send invite', { id: loadId });
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Team Intelligence</h2>
+          <p className="text-gray-400 text-sm">Manage internal operators and access tiers.</p>
+        </div>
+        <button 
+          onClick={() => setIsInviting(true)}
+          className="px-6 py-2 bg-accent text-accent-foreground font-bold rounded-xl shadow-lg shadow-accent/20 flex items-center gap-2"
+        >
+          <PlusCircle className="w-4 h-4" />
+          Invite Member
+        </button>
+      </div>
+
+      <Card className="overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50/50 text-[10px] font-mono uppercase tracking-widest text-gray-400">
+            <tr>
+              <th className="px-6 py-4">Name</th>
+              <th className="px-6 py-4">Department</th>
+              <th className="px-6 py-4">Clients</th>
+              <th className="px-6 py-4">Status</th>
+              <th className="px-6 py-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {allUsers.map((u, i) => (
+              <tr key={i} className="text-sm">
+                <td className="px-6 py-4">
+                  <p className="font-bold">{u.name}</p>
+                  <p className="text-[10px] text-gray-400 font-mono">{u.email}</p>
+                </td>
+                <td className="px-6 py-4 capitalize">{u.department}</td>
+                <td className="px-6 py-4">
+                  <Badge variant="outline">{u.assignedClients?.length || 0} Assigned</Badge>
+                </td>
+                <td className="px-6 py-4">
+                  <Badge variant={u.inviteStatus === 'active' ? 'accent' : 'outline'}>{u.inviteStatus}</Badge>
+                </td>
+                <td className="px-6 py-4">
+                  <button className="text-gray-400 hover:text-black transition-colors">Edit</button>
+                </td>
+              </tr>
+            ))}
+            {invites.filter(i => i.status === 'pending').map((inv, i) => (
+              <tr key={`inv-${i}`} className="text-sm opacity-60 bg-yellow-50/30">
+                <td className="px-6 py-4">
+                  <p className="font-bold">{inv.name}</p>
+                  <p className="text-[10px] text-gray-400 font-mono">{inv.email}</p>
+                </td>
+                <td className="px-6 py-4 capitalize">{inv.department}</td>
+                <td className="px-6 py-4">—</td>
+                <td className="px-6 py-4">
+                  <Badge variant="accent">Pending</Badge>
+                </td>
+                <td className="px-6 py-4">
+                  <button className="text-gray-400 hover:text-black transition-colors">Resend</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+
+      {isInviting && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md">
+            <Card className="p-8 space-y-6">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold">New Mission Invite</h3>
+                <button onClick={() => setIsInviting(false)} className="text-gray-400 hover:text-black">✕</button>
+              </div>
+              <form onSubmit={handleInvite} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Full Name</label>
+                  <input 
+                    required
+                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" 
+                    onChange={e => setInviteData({...inviteData, name: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Email Address</label>
+                  <input 
+                    required
+                    type="email"
+                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" 
+                    onChange={e => setInviteData({...inviteData, email: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Department</label>
+                  <select 
+                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none"
+                    onChange={e => setInviteData({...inviteData, department: e.target.value as any})}
+                  >
+                    <option value="content">Content</option>
+                    <option value="leadgen">Lead Gen</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+                <button type="submit" className="w-full py-4 bg-accent text-accent-foreground font-bold rounded-xl shadow-lg shadow-accent/20">
+                  Deploy Invitation
+                </button>
+              </form>
+            </Card>
+          </motion.div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const DataEntryView = ({ clients, userProfile }: { clients: Client[], userProfile: UserProfile | null }) => {
+  const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState('2026-W16');
+  const [entryData, setEntryData] = useState<any>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  const client = clients.find(c => c.id === selectedClient);
+  const userRoleInClient = userProfile?.assignedClients?.find(a => a.clientId === selectedClient)?.role;
+  const canSeeContent = userProfile?.role === 'admin' || userRoleInClient === 'contentManager' || userProfile?.department === 'both';
+  const canSeeLeadGen = userProfile?.role === 'admin' || userRoleInClient === 'leadGenManager' || userProfile?.department === 'both';
+
+  const handleSave = async (submit = false) => {
+    if (!selectedClient) return;
+    setIsSaving(true);
+    const loadId = toast.loading('Syncing OS data...');
+    try {
+      const docId = selectedWeek;
+      const year = '2026';
+      const ref = doc(db, `weeklyData/${selectedClient}/${year}`, docId);
+
+      const updatePayload: any = {};
+      if (canSeeContent) {
+        updatePayload.contentMetrics = entryData.contentMetrics || {};
+        updatePayload.lastUpdatedContent = serverTimestamp();
+        if (submit) updatePayload.submittedAtContent = serverTimestamp();
+      }
+      if (canSeeLeadGen) {
+        updatePayload.leadGenMetrics = entryData.leadGenMetrics || {};
+        updatePayload.lastUpdatedLeadGen = serverTimestamp();
+        if (submit) updatePayload.submittedAtLeadGen = serverTimestamp();
+      }
+
+      await setDoc(ref, { 
+        ...updatePayload,
+        weekOf: new Date().toISOString() 
+      }, { merge: true });
+
+      toast.success(submit ? 'Week Submitted Successfully' : 'Draft Saved', { id: loadId });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `weeklyData/${selectedClient}/2026/${selectedWeek}`);
+      toast.error('Sync failed', { id: loadId });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-8 max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Select Client</label>
+          <select 
+            className="w-full bg-white border border-gray-100 px-6 py-4 rounded-2xl outline-none shadow-sm font-bold text-lg"
+            onChange={(e) => {
+              setSelectedClient(e.target.value);
+              const perf = clients.find(c => c.id === e.target.value)?.weeklyPerformance.find(w => w.weekId === selectedWeek);
+              setEntryData(perf || { contentMetrics: {}, leadGenMetrics: {} });
+            }}
+          >
+            <option value="">— Select Target Account —</option>
+            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Select Week</label>
+          <select 
+            className="w-full bg-white border border-gray-100 px-6 py-4 rounded-2xl outline-none shadow-sm font-bold"
+            value={selectedWeek}
+            onChange={(e) => setSelectedWeek(e.target.value)}
+          >
+            {WEEKS.map(w => <option key={w} value={w}>{w}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {!selectedClient ? (
+        <div className="py-20 text-center bg-gray-50/50 border-2 border-dashed border-gray-100 rounded-3xl">
+          <TrendingUp className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+          <p className="text-gray-400 font-medium">Select a client account to begin data entry pulse.</p>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          <div className="flex gap-4 border-b border-gray-100">
+            {canSeeContent && <button className="px-6 py-4 border-b-2 border-accent text-sm font-bold">Content Metrics</button>}
+            {canSeeLeadGen && <button className="px-6 py-4 text-sm font-medium text-gray-400">Lead Gen Metrics</button>}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+            {(canSeeContent ? CONTENT_METRICS_LIST : LEADGEN_METRICS_LIST).map(m => (
+              <div key={m.id} className="space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">{m.category}</p>
+                    <h4 className="font-bold text-sm">{m.name}</h4>
+                  </div>
+                  {m.type === 'auto' && <Badge variant="outline">Auto</Badge>}
+                </div>
+                
+                {m.type === 'number' && (
+                  <div className="flex gap-4">
+                    <input 
+                      type="number"
+                      placeholder="Actual"
+                      className="flex-1 bg-gray-50 border-none px-4 py-3 rounded-xl outline-none"
+                      value={entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value || ''}
+                      onChange={(e) => {
+                        const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
+                        setEntryData({
+                          ...entryData,
+                          [section]: {
+                            ...entryData[section],
+                            [m.id]: { ...entryData[section]?.[m.id], value: Number(e.target.value) }
+                          }
+                        });
+                      }}
+                    />
+                    <input 
+                      type="number"
+                      placeholder="Target"
+                      className="w-24 bg-gray-100/50 border-none px-4 py-3 rounded-xl outline-none text-xs font-mono"
+                      value={entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.target || ''}
+                      onChange={(e) => {
+                        const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
+                        setEntryData({
+                          ...entryData,
+                          [section]: {
+                            ...entryData[section],
+                            [m.id]: { ...entryData[section]?.[m.id], target: Number(e.target.value) }
+                          }
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {m.type === 'textarea' && (
+                  <textarea 
+                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none min-h-[100px] text-sm"
+                    placeholder="Detailed notes / descriptions..."
+                    value={entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value || ''}
+                    onChange={(e) => {
+                      const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
+                      setEntryData({
+                        ...entryData,
+                        [section]: {
+                          ...entryData[section],
+                          [m.id]: { ...entryData[section]?.[m.id], value: e.target.value }
+                        }
+                      });
+                    }}
+                  />
+                )}
+
+                {m.type === 'boolean' && (
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => {
+                        const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
+                        setEntryData({
+                          ...entryData,
+                          [section]: {
+                            ...entryData[section],
+                            [m.id]: { ...entryData[section]?.[m.id], value: true }
+                          }
+                        });
+                      }}
+                      className={`px-6 py-3 rounded-xl text-xs font-bold transition-all ${entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value === true ? 'bg-accent text-accent-foreground' : 'bg-gray-50 text-gray-400'}`}
+                    >
+                      YES
+                    </button>
+                    <button 
+                       onClick={() => {
+                        const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
+                        setEntryData({
+                          ...entryData,
+                          [section]: {
+                            ...entryData[section],
+                            [m.id]: { ...entryData[section]?.[m.id], value: false }
+                          }
+                        });
+                      }}
+                      className={`px-6 py-3 rounded-xl text-xs font-bold transition-all ${entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value === false ? 'bg-red-500 text-white' : 'bg-gray-50 text-gray-400'}`}
+                    >
+                      NO
+                    </button>
+                  </div>
+                )}
+
+                {m.type === 'auto' && (
+                  <div className="bg-gray-50/50 p-4 rounded-xl border border-dashed border-gray-200">
+                    <span className="text-xl font-black">{m.calc?.(entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics'] || {})}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-12 flex gap-4">
+            <button 
+              onClick={() => handleSave(false)}
+              disabled={isSaving}
+              className="px-10 py-4 bg-white border border-gray-100 font-bold rounded-2xl shadow-sm hover:bg-gray-50 transition-all"
+            >
+              Save Draft
+            </button>
+            <button 
+              onClick={() => handleSave(true)}
+              disabled={isSaving}
+              className="flex-1 py-4 bg-accent text-accent-foreground font-black rounded-2xl shadow-xl shadow-accent/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
+            >
+              Submit Week Pulse
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- Main App Component ---
 
 export default function App() {
@@ -237,6 +689,33 @@ export default function App() {
       setActiveTab('accept-invite');
     }
   }, []);
+
+  const navItems = useMemo(() => {
+    if (!userProfile) return [];
+    
+    const isAdmin = userProfile.role === 'admin';
+    
+    const baseItems = [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'actionables', label: 'Actionables', icon: Layers },
+      { id: 'data-entry', label: 'Data Entry', icon:TrendingUp },
+    ];
+
+    if (isAdmin) {
+      return [
+        ...baseItems,
+        { id: 'clients', label: 'Clients', icon: Users },
+        { id: 'monday-mode', label: 'Monday Mode', icon: Calendar },
+        { id: 'sales', label: 'Sales & Pipeline', icon: BarChart3 },
+        { id: 'finance', label: 'Finance', icon: ShieldCheck },
+        { id: 'internal', label: 'Internal Systems', icon: Database },
+        { id: 'team', label: 'Team Members', icon: ShieldCheck },
+        { id: 'settings', label: 'Settings', icon: Settings },
+      ];
+    }
+
+    return baseItems;
+  }, [userProfile]);
 
   // Auth Effect
   useEffect(() => {
@@ -362,455 +841,8 @@ export default function App() {
 
   // --- Views ---
 
-  const AcceptInviteView = () => {
-    const [password, setPassword] = useState('');
-    const [inviteData, setInviteData] = useState<Invite | null>(null);
-    const [isProcessing, setIsProcessing] = useState(false);
+  // (Internal view logic moved to sub-components)
 
-    useEffect(() => {
-      if (!inviteToken) return;
-      const q = query(collection(db, 'invites'), where('token', '==', inviteToken));
-      getDocs(q).then(snap => {
-        if (!snap.empty) {
-          setInviteData({ id: snap.docs[0].id, ...snap.docs[0].data() } as Invite);
-        }
-      });
-    }, [inviteToken]);
-
-    const handleAccept = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!inviteData) return;
-      setIsProcessing(true);
-      const loadId = toast.loading('Initializing identity...');
-
-      try {
-        const u = await createUserWithEmailAndPassword(auth, inviteData.email, password);
-        const profile: UserProfile = {
-          uid: u.user.uid,
-          email: inviteData.email,
-          name: inviteData.name,
-          department: inviteData.department,
-          role: inviteData.role,
-          assignedClients: [],
-          inviteStatus: 'active',
-          invitedBy: inviteData.invitedBy,
-          createdAt: serverTimestamp()
-        };
-        await setDoc(doc(db, 'users', u.user.uid), profile);
-        await updateDoc(doc(db, 'invites', inviteData.id), { status: 'accepted' });
-        
-        toast.success('Access Granted. Welcome to Myntmore OS.', { id: loadId });
-        setActiveTab('dashboard');
-      } catch (error) {
-        toast.error('Identity creation failed', { id: loadId });
-      } finally {
-        setIsProcessing(false);
-      }
-    };
-
-    if (!inviteData) return <div className="p-20 text-center font-mono">Decoding invitation token...</div>;
-
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-6">
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="w-full max-w-sm">
-          <Card className="p-10 space-y-8">
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl font-black italic tracking-tighter uppercase">ACCESS REQUESTED</h2>
-              <p className="text-gray-400 text-xs font-mono uppercase tracking-widest">Pending verification for {inviteData.name}</p>
-            </div>
-
-            <form onSubmit={handleAccept} className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-mono text-gray-400 uppercase tracking-widest pl-1">Email Authority</label>
-                <input 
-                  disabled
-                  value={inviteData.email}
-                  className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl text-gray-400 font-medium"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-mono text-gray-400 uppercase tracking-widest pl-1">Define Master Password</label>
-                <input 
-                  required
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none focus:ring-2 ring-accent/50"
-                  placeholder="••••••••"
-                />
-              </div>
-              <button 
-                type="submit" 
-                disabled={isProcessing}
-                className="w-full py-4 bg-accent text-accent-foreground font-black rounded-xl shadow-xl shadow-accent/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
-              >
-                SECURE IDENTITY & JOIN
-              </button>
-            </form>
-          </Card>
-        </motion.div>
-      </div>
-    );
-  };
-
-  const TeamView = () => {
-    const [isInviting, setIsInviting] = useState(false);
-    const [inviteData, setInviteData] = useState({ name: '', email: '', department: 'content' as any });
-
-    const handleInvite = async (e: React.FormEvent) => {
-      e.preventDefault();
-      const loadId = toast.loading('Sending invitation...');
-      try {
-        const token = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
-        await addDoc(collection(db, 'invites'), {
-          ...inviteData,
-          role: 'member',
-          invitedBy: user?.uid,
-          createdAt: serverTimestamp(),
-          status: 'pending',
-          token
-        });
-        toast.success(`Invite link generated: /accept-invite?token=${token}`, { id: loadId, duration: 10000 });
-        setIsInviting(false);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, 'invites');
-        toast.error('Failed to send invite', { id: loadId });
-      }
-    };
-
-    return (
-      <div className="space-y-8">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Team Intelligence</h2>
-            <p className="text-gray-400 text-sm">Manage internal operators and access tiers.</p>
-          </div>
-          <button 
-            onClick={() => setIsInviting(true)}
-            className="px-6 py-2 bg-accent text-accent-foreground font-bold rounded-xl shadow-lg shadow-accent/20 flex items-center gap-2"
-          >
-            <PlusCircle className="w-4 h-4" />
-            Invite Member
-          </button>
-        </div>
-
-        <Card className="overflow-hidden">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50/50 text-[10px] font-mono uppercase tracking-widest text-gray-400">
-              <tr>
-                <th className="px-6 py-4">Name</th>
-                <th className="px-6 py-4">Department</th>
-                <th className="px-6 py-4">Clients</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {allUsers.map((u, i) => (
-                <tr key={i} className="text-sm">
-                  <td className="px-6 py-4">
-                    <p className="font-bold">{u.name}</p>
-                    <p className="text-[10px] text-gray-400 font-mono">{u.email}</p>
-                  </td>
-                  <td className="px-6 py-4 capitalize">{u.department}</td>
-                  <td className="px-6 py-4">
-                    <Badge variant="outline">{u.assignedClients?.length || 0} Assigned</Badge>
-                  </td>
-                  <td className="px-6 py-4">
-                    <Badge variant={u.inviteStatus === 'active' ? 'accent' : 'outline'}>{u.inviteStatus}</Badge>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button className="text-gray-400 hover:text-black transition-colors">Edit</button>
-                  </td>
-                </tr>
-              ))}
-              {invites.filter(i => i.status === 'pending').map((inv, i) => (
-                <tr key={`inv-${i}`} className="text-sm opacity-60 bg-yellow-50/30">
-                  <td className="px-6 py-4">
-                    <p className="font-bold">{inv.name}</p>
-                    <p className="text-[10px] text-gray-400 font-mono">{inv.email}</p>
-                  </td>
-                  <td className="px-6 py-4 capitalize">{inv.department}</td>
-                  <td className="px-6 py-4">—</td>
-                  <td className="px-6 py-4">
-                    <Badge variant="accent">Pending</Badge>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button className="text-gray-400 hover:text-black transition-colors">Resend</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-
-        {isInviting && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md">
-              <Card className="p-8 space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xl font-bold">New Mission Invite</h3>
-                  <button onClick={() => setIsInviting(false)} className="text-gray-400 hover:text-black">✕</button>
-                </div>
-                <form onSubmit={handleInvite} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Full Name</label>
-                    <input 
-                      required
-                      className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" 
-                      onChange={e => setInviteData({...inviteData, name: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Email Address</label>
-                    <input 
-                      required
-                      type="email"
-                      className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" 
-                      onChange={e => setInviteData({...inviteData, email: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Department</label>
-                    <select 
-                      className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none"
-                      onChange={e => setInviteData({...inviteData, department: e.target.value as any})}
-                    >
-                      <option value="content">Content</option>
-                      <option value="leadgen">Lead Gen</option>
-                      <option value="both">Both</option>
-                    </select>
-                  </div>
-                  <button type="submit" className="w-full py-4 bg-accent text-accent-foreground font-bold rounded-xl shadow-lg shadow-accent/20">
-                    Deploy Invitation
-                  </button>
-                </form>
-              </Card>
-            </motion.div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const DataEntryView = () => {
-    const [selectedClient, setSelectedClient] = useState<string | null>(null);
-    const [selectedWeek, setSelectedWeek] = useState('2026-W16');
-    const [entryData, setEntryData] = useState<any>({});
-    const [isSaving, setIsSaving] = useState(false);
-
-    const client = clients.find(c => c.id === selectedClient);
-    const userRoleInClient = userProfile?.assignedClients?.find(a => a.clientId === selectedClient)?.role;
-    const canSeeContent = userProfile?.role === 'admin' || userRoleInClient === 'contentManager' || userProfile?.department === 'both';
-    const canSeeLeadGen = userProfile?.role === 'admin' || userRoleInClient === 'leadGenManager' || userProfile?.department === 'both';
-
-    const handleSave = async (submit = false) => {
-      if (!selectedClient) return;
-      setIsSaving(true);
-      const loadId = toast.loading('Syncing OS data...');
-      try {
-        const docId = selectedWeek;
-        const year = '2026';
-        const ref = doc(db, `weeklyData/${selectedClient}/${year}`, docId);
-
-        const updatePayload: any = {};
-        if (canSeeContent) {
-          updatePayload.contentMetrics = entryData.contentMetrics || {};
-          updatePayload.lastUpdatedContent = serverTimestamp();
-          if (submit) updatePayload.submittedAtContent = serverTimestamp();
-        }
-        if (canSeeLeadGen) {
-          updatePayload.leadGenMetrics = entryData.leadGenMetrics || {};
-          updatePayload.lastUpdatedLeadGen = serverTimestamp();
-          if (submit) updatePayload.submittedAtLeadGen = serverTimestamp();
-        }
-
-        await setDoc(ref, { 
-          ...updatePayload,
-          weekOf: new Date().toISOString() // In real app, calculate from weekId
-        }, { merge: true });
-
-        toast.success(submit ? 'Week Submitted Successfully' : 'Draft Saved', { id: loadId });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, `weeklyData/${selectedClient}/2026/${selectedWeek}`);
-        toast.error('Sync failed', { id: loadId });
-      } finally {
-        setIsSaving(false);
-      }
-    };
-
-    return (
-      <div className="space-y-8 max-w-5xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Select Client</label>
-            <select 
-              className="w-full bg-white border border-gray-100 px-6 py-4 rounded-2xl outline-none shadow-sm font-bold text-lg"
-              onChange={(e) => {
-                setSelectedClient(e.target.value);
-                const perf = clients.find(c => c.id === e.target.value)?.weeklyPerformance.find(w => w.weekId === selectedWeek);
-                setEntryData(perf || { contentMetrics: {}, leadGenMetrics: {} });
-              }}
-            >
-              <option value="">— Select Target Account —</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Select Week</label>
-            <select 
-              className="w-full bg-white border border-gray-100 px-6 py-4 rounded-2xl outline-none shadow-sm font-bold"
-              value={selectedWeek}
-              onChange={(e) => setSelectedWeek(e.target.value)}
-            >
-              {WEEKS.map(w => <option key={w} value={w}>{w}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {!selectedClient ? (
-          <div className="py-20 text-center bg-gray-50/50 border-2 border-dashed border-gray-100 rounded-3xl">
-            <TrendingUp className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-            <p className="text-gray-400 font-medium">Select a client account to begin data entry pulse.</p>
-          </div>
-        ) : (
-          <div className="space-y-8">
-            <div className="flex gap-4 border-b border-gray-100">
-              {canSeeContent && <button className="px-6 py-4 border-b-2 border-accent text-sm font-bold">Content Metrics</button>}
-              {canSeeLeadGen && <button className="px-6 py-4 text-sm font-medium text-gray-400">Lead Gen Metrics</button>}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-              {(canSeeContent ? CONTENT_METRICS_LIST : LEADGEN_METRICS_LIST).map(m => (
-                <div key={m.id} className="space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">{m.category}</p>
-                      <h4 className="font-bold text-sm">{m.name}</h4>
-                    </div>
-                    {m.type === 'auto' && <Badge variant="outline">Auto</Badge>}
-                  </div>
-                  
-                  {m.type === 'number' && (
-                    <div className="flex gap-4">
-                      <input 
-                        type="number"
-                        placeholder="Actual"
-                        className="flex-1 bg-gray-50 border-none px-4 py-3 rounded-xl outline-none"
-                        value={entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value || ''}
-                        onChange={(e) => {
-                          const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
-                          setEntryData({
-                            ...entryData,
-                            [section]: {
-                              ...entryData[section],
-                              [m.id]: { ...entryData[section]?.[m.id], value: Number(e.target.value) }
-                            }
-                          });
-                        }}
-                      />
-                      <input 
-                        type="number"
-                        placeholder="Target"
-                        className="w-24 bg-gray-100/50 border-none px-4 py-3 rounded-xl outline-none text-xs font-mono"
-                        value={entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.target || ''}
-                        onChange={(e) => {
-                          const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
-                          setEntryData({
-                            ...entryData,
-                            [section]: {
-                              ...entryData[section],
-                              [m.id]: { ...entryData[section]?.[m.id], target: Number(e.target.value) }
-                            }
-                          });
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  {m.type === 'textarea' && (
-                    <textarea 
-                      className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none min-h-[100px] text-sm"
-                      placeholder="Detailed notes / descriptions..."
-                      value={entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value || ''}
-                      onChange={(e) => {
-                        const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
-                        setEntryData({
-                          ...entryData,
-                          [section]: {
-                            ...entryData[section],
-                            [m.id]: { ...entryData[section]?.[m.id], value: e.target.value }
-                          }
-                        });
-                      }}
-                    />
-                  )}
-
-                  {m.type === 'boolean' && (
-                    <div className="flex items-center gap-4">
-                      <button 
-                        onClick={() => {
-                          const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
-                          setEntryData({
-                            ...entryData,
-                            [section]: {
-                              ...entryData[section],
-                              [m.id]: { ...entryData[section]?.[m.id], value: true }
-                            }
-                          });
-                        }}
-                        className={`px-6 py-3 rounded-xl text-xs font-bold transition-all ${entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value === true ? 'bg-accent text-accent-foreground' : 'bg-gray-50 text-gray-400'}`}
-                      >
-                        YES
-                      </button>
-                      <button 
-                         onClick={() => {
-                          const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
-                          setEntryData({
-                            ...entryData,
-                            [section]: {
-                              ...entryData[section],
-                              [m.id]: { ...entryData[section]?.[m.id], value: false }
-                            }
-                          });
-                        }}
-                        className={`px-6 py-3 rounded-xl text-xs font-bold transition-all ${entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value === false ? 'bg-red-500 text-white' : 'bg-gray-50 text-gray-400'}`}
-                      >
-                        NO
-                      </button>
-                    </div>
-                  )}
-
-                  {m.type === 'auto' && (
-                    <div className="bg-gray-50/50 p-4 rounded-xl border border-dashed border-gray-200">
-                      <span className="text-xl font-black">{m.calc?.(entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics'] || {})}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="pt-12 flex gap-4">
-              <button 
-                onClick={() => handleSave(false)}
-                disabled={isSaving}
-                className="px-10 py-4 bg-white border border-gray-100 font-bold rounded-2xl shadow-sm hover:bg-gray-50 transition-all"
-              >
-                Save Draft
-              </button>
-              <button 
-                onClick={() => handleSave(true)}
-                disabled={isSaving}
-                className="flex-1 py-4 bg-accent text-accent-foreground font-black rounded-2xl shadow-xl shadow-accent/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
-              >
-                Submit Week Pulse
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1018,35 +1050,8 @@ export default function App() {
     );
   }
 
-  const navItems = useMemo(() => {
-    if (!userProfile) return [];
-    
-    const isAdmin = userProfile.role === 'admin';
-    
-    const baseItems = [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { id: 'actionables', label: 'Actionables', icon: Layers },
-      { id: 'data-entry', label: 'Data Entry', icon:TrendingUp },
-    ];
-
-    if (isAdmin) {
-      return [
-        ...baseItems,
-        { id: 'clients', label: 'Clients', icon: Users },
-        { id: 'monday-mode', label: 'Monday Mode', icon: Calendar },
-        { id: 'sales', label: 'Sales & Pipeline', icon: BarChart3 },
-        { id: 'finance', label: 'Finance', icon: ShieldCheck },
-        { id: 'internal', label: 'Internal Systems', icon: Database },
-        { id: 'team', label: 'Team Members', icon: ShieldCheck },
-        { id: 'settings', label: 'Settings', icon: Settings },
-      ];
-    }
-
-    return baseItems;
-  }, [userProfile]);
-
   if (activeTab === 'accept-invite') {
-    return <AcceptInviteView />;
+    return <AcceptInviteView inviteToken={inviteToken} onAcceptSuccess={() => setActiveTab('dashboard')} />;
   }
 
   return (
@@ -1361,8 +1366,8 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === 'team' && userProfile?.role === 'admin' && <TeamView />}
-          {activeTab === 'data-entry' && <DataEntryView />}
+          {activeTab === 'team' && userProfile?.role === 'admin' && <TeamView allUsers={allUsers} invites={invites} userId={user?.uid} />}
+          {activeTab === 'data-entry' && <DataEntryView clients={clients} userProfile={userProfile} />}
 
           {activeTab === 'actionables' && (
             <div className="py-20 text-center space-y-4">
