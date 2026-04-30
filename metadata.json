@@ -1,0 +1,5 @@
+{
+  "name": "Myntmore Dashboard OS",
+  "description": "An internal operating system for Myntmore agency, replacing Google Sheets with real-time analytics, Monday meetings mode, and AI insights.",
+  "requestFramePermissions": ["camera", "microphone"]
+}

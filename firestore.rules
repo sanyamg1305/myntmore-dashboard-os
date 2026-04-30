@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      ) || (request.auth.token.email == "sanyam@myntmore.com" && isEmailVerified());
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Client Validation
+    function isValidClient(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.owner is string && data.owner.size() > 0 &&
+             data.status in ['active', 'paused', 'archived'] &&
+             data.metrics is list;
+    }
+
+    match /clients/{clientId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidClient(request.resource.data) && isValidId(clientId);
+      allow update: if (isAdmin() || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt']))) 
+                    && isValidClient(request.resource.data);
+      allow delete: if isAdmin();
+
+      match /performance/{weekId} {
+        allow read: if isSignedIn();
+        allow create, update: if isAdmin() && isValidId(weekId);
+        allow delete: if isAdmin();
+      }
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+  }
+}

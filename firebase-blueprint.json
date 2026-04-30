@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "Client": {
+      "title": "Client",
+      "description": "A client account with its targets and metadata.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Client name" },
+        "owner": { "type": "string", "description": "Account manager or owner" },
+        "status": { "type": "string", "enum": ["active", "paused", "archived"] },
+        "metrics": {
+          "type": "array",
+          "items": { "$ref": "#/entities/Metric" }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "owner", "status", "metrics"]
+    },
+    "Metric": {
+      "title": "Metric",
+      "description": "A specific KPI tracked for a client.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "target": { "type": "number" },
+        "unit": { "type": "string", "enum": ["percentage", "number", "currency"] },
+        "group": { "type": "string", "description": "Category like 'Sales', 'Ops', etc." }
+      },
+      "required": ["id", "name", "target", "unit"]
+    },
+    "WeeklyData": {
+      "title": "Weekly Performance",
+      "description": "Actual values for metrics in a specific week.",
+      "type": "object",
+      "properties": {
+        "weekId": { "type": "string", "description": "Format: YYYY-WW" },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" },
+          "description": "Map of metricId to value"
+        },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["weekId", "metrics"]
+    },
+    "User": {
+      "title": "User",
+      "description": "System user profile for access control.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "viewer"] }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Client primary data."
+    },
+    "/clients/{clientId}/performance/{weekId}": {
+      "schema": "WeeklyData",
+      "description": "Weekly performance snapshots for a client."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile and roles."
+    }
+  }
+}
