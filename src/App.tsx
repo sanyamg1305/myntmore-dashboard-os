@@ -329,13 +329,15 @@ const AcceptInviteView = ({ onAcceptSuccess }: { onAcceptSuccess: () => void }) 
     </div>
   );
 
+  if (!inviteData) return null;
+
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-6">
       <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="w-full max-w-sm">
         <Card className="p-10 space-y-8">
           <div className="text-center space-y-2">
             <h2 className="text-2xl font-black italic tracking-tighter uppercase">ACCESS REQUESTED</h2>
-            <p className="text-gray-400 text-xs font-mono uppercase tracking-widest">Pending verification for {inviteData.name}</p>
+            <p className="text-gray-400 text-xs font-mono uppercase tracking-widest">Pending verification for {inviteData?.name}</p>
           </div>
 
           <form onSubmit={handleAccept} className="space-y-6">
@@ -343,7 +345,7 @@ const AcceptInviteView = ({ onAcceptSuccess }: { onAcceptSuccess: () => void }) 
               <label className="text-[10px] font-mono text-gray-400 uppercase tracking-widest pl-1">Email Authority</label>
               <input 
                 disabled
-                value={inviteData.email}
+                value={inviteData?.email}
                 className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl text-gray-400 font-medium"
               />
             </div>
