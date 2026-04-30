@@ -1355,6 +1355,17 @@ export default function App() {
             </div>
           )}
 
+          {activeTab === 'team' && userProfile?.role === 'admin' && <TeamView />}
+          {activeTab === 'data-entry' && <DataEntryView />}
+
+          {activeTab === 'actionables' && (
+            <div className="py-20 text-center space-y-4">
+              <Layers className="w-12 h-12 text-gray-200 mx-auto" />
+              <h3 className="text-lg font-bold">Actionable Tasks</h3>
+              <p className="text-gray-400">Task tracking and pipeline logic coming in v1.4</p>
+            </div>
+          )}
+
           {activeTab === 'monday-mode' && userProfile?.role === 'admin' && (
             <div className="space-y-10">
               <div className="flex flex-col items-center text-center space-y-4 mb-16">
@@ -1440,6 +1451,10 @@ export default function App() {
             </div>
           )}
 
+
+          {activeTab === 'sales' && <div className="p-10 font-mono text-xs uppercase tracking-widest text-gray-400">Sales & Pipeline Authority Dashboard</div>}
+          {activeTab === 'finance' && <div className="p-10 font-mono text-xs uppercase tracking-widest text-gray-400">Finance & ARR Tracking</div>}
+          {activeTab === 'internal' && <div className="p-10 font-mono text-xs uppercase tracking-widest text-gray-400">Internal Agency Systems Configuration</div>}
 
           {activeTab === 'settings' && (
             <div className="max-w-2xl space-y-10">
