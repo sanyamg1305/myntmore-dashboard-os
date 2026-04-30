@@ -2,58 +2,92 @@
   "entities": {
     "Client": {
       "title": "Client",
-      "description": "A client account with its targets and metadata.",
+      "description": "A client account with its targets and managers.",
       "type": "object",
       "properties": {
         "name": { "type": "string", "description": "Client name" },
-        "owner": { "type": "string", "description": "Account manager or owner" },
-        "status": { "type": "string", "enum": ["active", "paused", "archived"] },
-        "metrics": {
-          "type": "array",
-          "items": { "$ref": "#/entities/Metric" }
-        },
+        "status": { "type": "string", "enum": ["active", "archived"] },
+        "contentManagerUid": { "type": "string" },
+        "contentManagerName": { "type": "string" },
+        "leadGenManagerUid": { "type": "string" },
+        "leadGenManagerName": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "owner", "status", "metrics"]
-    },
-    "Metric": {
-      "title": "Metric",
-      "description": "A specific KPI tracked for a client.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "target": { "type": "number" },
-        "unit": { "type": "string", "enum": ["percentage", "number", "currency"] },
-        "group": { "type": "string", "description": "Category like 'Sales', 'Ops', etc." }
-      },
-      "required": ["id", "name", "target", "unit"]
-    },
-    "WeeklyData": {
-      "title": "Weekly Performance",
-      "description": "Actual values for metrics in a specific week.",
-      "type": "object",
-      "properties": {
-        "weekId": { "type": "string", "description": "Format: YYYY-WW" },
-        "metrics": {
-          "type": "object",
-          "additionalProperties": { "type": "number" },
-          "description": "Map of metricId to value"
-        },
-        "timestamp": { "type": "string", "format": "date-time" }
-      },
-      "required": ["weekId", "metrics"]
+      "required": ["name", "status", "contentManagerUid", "leadGenManagerUid"]
     },
     "User": {
       "title": "User",
       "description": "System user profile for access control.",
       "type": "object",
       "properties": {
+        "uid": { "type": "string" },
         "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "viewer"] }
+        "name": { "type": "string" },
+        "department": { "type": "string", "enum": ["content", "leadgen", "both"] },
+        "role": { "type": "string", "enum": ["admin", "member"] },
+        "assignedClients": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clientId": { "type": "string" },
+              "role": { "type": "string", "enum": ["contentManager", "leadGenManager"] }
+            }
+          }
+        },
+        "inviteStatus": { "type": "string", "enum": ["active", "disabled"] },
+        "invitedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["email", "role"]
+      "required": ["email", "name", "department", "role"]
+    },
+    "Invite": {
+      "title": "Invite",
+      "description": "A pending team invitation.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "department": { "type": "string", "enum": ["content", "leadgen", "both"] },
+        "role": { "type": "string", "const": "member" },
+        "invitedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "accepted"] },
+        "token": { "type": "string", "description": "Random UUID for verification" }
+      },
+      "required": ["email", "name", "department", "token"]
+    },
+    "MetricValue": {
+      "type": "object",
+      "properties": {
+        "value": { "type": ["number", "string", "boolean"] },
+        "target": { "type": "number" },
+        "status": { "type": "string" },
+        "statusOverride": { "type": "string" },
+        "note": { "type": "string" }
+      }
+    },
+    "WeeklyPerformance": {
+      "title": "Weekly Performance",
+      "description": "Split metrics data for content and lead gen.",
+      "type": "object",
+      "properties": {
+        "weekOf": { "type": "string", "format": "date" },
+        "contentMetrics": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/entities/MetricValue" }
+        },
+        "leadGenMetrics": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/entities/MetricValue" }
+        },
+        "lastUpdatedContent": { "type": "string", "format": "date-time" },
+        "lastUpdatedLeadGen": { "type": "string", "format": "date-time" },
+        "submittedAtContent": { "type": "string", "format": "date-time" },
+        "submittedAtLeadGen": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
@@ -61,13 +95,17 @@
       "schema": "Client",
       "description": "Client primary data."
     },
-    "/clients/{clientId}/performance/{weekId}": {
-      "schema": "WeeklyData",
+    "/weeklyData/{clientId}/{year}/{weekNumber}": {
+      "schema": "WeeklyPerformance",
       "description": "Weekly performance snapshots for a client."
     },
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile and roles."
+    },
+    "/invites/{inviteId}": {
+      "schema": "Invite",
+      "description": "Pending member invitations."
     }
   }
 }

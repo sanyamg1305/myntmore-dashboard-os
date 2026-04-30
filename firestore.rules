@@ -1,12 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
 
-    // Helper functions
+    // --- Helper Functions ---
+    
     function isSignedIn() {
       return request.auth != null;
     }
@@ -15,41 +12,80 @@ service cloud.firestore {
       return request.auth.token.email_verified == true;
     }
 
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function isAdmin() {
       return isSignedIn() && (
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-      ) || (request.auth.token.email == "sanyam@myntmore.com" && isEmailVerified());
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == "admin") ||
+        (request.auth.token.email == "sanyam@myntmore.com" && isEmailVerified())
+      );
+    }
+
+    function isContentManagerFor(clientId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             getUserData().assignedClients.hasAny([{ "clientId": clientId, "role": "contentManager" }]);
+    }
+
+    function isLeadGenManagerFor(clientId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             getUserData().assignedClients.hasAny([{ "clientId": clientId, "role": "leadGenManager" }]);
+    }
+
+    function isAssignedToClient(clientId) {
+      return isContentManagerFor(clientId) || isLeadGenManagerFor(clientId);
     }
 
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // Client Validation
-    function isValidClient(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-             data.owner is string && data.owner.size() > 0 &&
-             data.status in ['active', 'paused', 'archived'] &&
-             data.metrics is list;
+    // --- Global Deny ---
+    match /{document=**} {
+      allow read, write: if false;
     }
 
+    // --- Collections ---
+
+    // Users collection
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        request.auth.uid == uid && 
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'assignedClients', 'department', 'inviteStatus'])
+      );
+    }
+
+    // Invites
+    match /invites/{inviteId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.token.email == resource.data.email);
+      allow write: if isAdmin();
+    }
+
+    // Clients
     match /clients/{clientId} {
-      allow read: if isSignedIn();
-      allow create: if isAdmin() && isValidClient(request.resource.data) && isValidId(clientId);
-      allow update: if (isAdmin() || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt']))) 
-                    && isValidClient(request.resource.data);
-      allow delete: if isAdmin();
-
-      match /performance/{weekId} {
-        allow read: if isSignedIn();
-        allow create, update: if isAdmin() && isValidId(weekId);
-        allow delete: if isAdmin();
-      }
+      allow read: if isSignedIn() && (isAdmin() || isAssignedToClient(clientId));
+      allow write: if isAdmin();
     }
 
-    match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    // Weekly Data — content and lead gen are separate sub-fields
+    match /weeklyData/{clientId}/{year}/{weekNumber} {
+      allow read: if isSignedIn() && (isAdmin() || isAssignedToClient(clientId));
+      
+      allow create: if isSignedIn() && (isAdmin() || isAssignedToClient(clientId));
+
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (isContentManagerFor(clientId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['contentMetrics', 'lastUpdatedContent', 'submittedAtContent'])) ||
+        (isLeadGenManagerFor(clientId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leadGenMetrics', 'lastUpdatedLeadGen', 'submittedAtLeadGen']))
+      );
+    }
+
+    // Company-level data
+    match /companyData/{document=**} {
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
   }
