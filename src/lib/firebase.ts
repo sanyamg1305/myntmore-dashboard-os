@@ -5,8 +5,8 @@ import firebaseConfig from '../../firebase-applet-config.json';
 import { toast } from 'sonner';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const auth = getAuth();
+export const db = getFirestore(app);
+export const auth = getAuth(app);
 
 export enum OperationType {
   CREATE = 'create',

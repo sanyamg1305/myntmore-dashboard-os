@@ -241,32 +241,38 @@ export default function App() {
   // Auth Effect
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      if (u) {
-        const userRef = doc(db, 'users', u.uid);
-        const userDoc = await getDoc(userRef);
-        if (userDoc.exists()) {
-          setUserProfile(userDoc.data() as UserProfile);
-        } else if (u.email === 'sanyam@myntmore.com') {
-          // Auto-bootstrap admin
-          const profile: UserProfile = { 
-            uid: u.uid,
-            email: u.email, 
-            role: 'admin', 
-            name: 'Sanyam', 
-            department: 'both',
-            assignedClients: [],
-            inviteStatus: 'active',
-            invitedBy: 'system',
-            createdAt: serverTimestamp()
-          };
-          await setDoc(userRef, profile);
-          setUserProfile(profile);
+      try {
+        setUser(u);
+        if (u) {
+          const userRef = doc(db, 'users', u.uid);
+          const userDoc = await getDoc(userRef);
+          if (userDoc.exists()) {
+            setUserProfile(userDoc.data() as UserProfile);
+          } else if (u.email === 'sanyam@myntmore.com') {
+            // Auto-bootstrap admin
+            const profile: UserProfile = { 
+              uid: u.uid,
+              email: u.email, 
+              role: 'admin', 
+              name: 'Sanyam', 
+              department: 'both',
+              assignedClients: [],
+              inviteStatus: 'active',
+              invitedBy: 'system',
+              createdAt: serverTimestamp()
+            };
+            await setDoc(userRef, profile);
+            setUserProfile(profile);
+          }
+        } else {
+          setUserProfile(null);
         }
-      } else {
-        setUserProfile(null);
+      } catch (error) {
+        console.error('Auth sync error:', error);
+        // Don't set profile but let auth ready continue
+      } finally {
+        setIsAuthReady(true);
       }
-      setIsAuthReady(true);
     });
   }, []);
 
@@ -313,7 +319,7 @@ export default function App() {
 
       // Member access control: Only their assigned clients
       if (userProfile.role !== 'admin') {
-        const assignedIds = userProfile.assignedClients.map(c => c.clientId);
+        const assignedIds = (userProfile.assignedClients || []).map(c => c.clientId);
         clientsData = clientsData.filter(c => assignedIds.includes(c.id));
       }
 
@@ -594,7 +600,7 @@ export default function App() {
     const [isSaving, setIsSaving] = useState(false);
 
     const client = clients.find(c => c.id === selectedClient);
-    const userRoleInClient = userProfile?.assignedClients.find(a => a.clientId === selectedClient)?.role;
+    const userRoleInClient = userProfile?.assignedClients?.find(a => a.clientId === selectedClient)?.role;
     const canSeeContent = userProfile?.role === 'admin' || userRoleInClient === 'contentManager' || userProfile?.department === 'both';
     const canSeeLeadGen = userProfile?.role === 'admin' || userRoleInClient === 'leadGenManager' || userProfile?.department === 'both';
 
