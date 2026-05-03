@@ -72,6 +72,9 @@ interface MetricValue {
 interface WeeklyPerformance {
   weekId: string;
   weekOf: string;
+  weekStart?: string;
+  weekEnd?: string;
+  weekLabel?: string;
   contentMetrics: { [key: string]: MetricValue };
   leadGenMetrics: { [key: string]: MetricValue };
   lastUpdatedContent?: any;
@@ -117,6 +120,20 @@ interface Invite {
   token: string;
 }
 
+interface HighScore {
+  lifetimeHigh: number;
+  achievedWeek: string;
+  previousHigh: number | null;
+  updatedAt: any;
+}
+
+interface ClientSettings {
+  activeContentMetrics: string[];
+  activeLeadGenMetrics: string[];
+  customTargets: { [key: string]: number };
+}
+
+
 // --- Constants ---
 
 const CONTENT_METRICS_LIST = [
@@ -147,47 +164,169 @@ const CONTENT_METRICS_LIST = [
   { id: 'C25', name: 'What\'s Not Working (Content)', type: 'textarea', category: 'Qualitative' },
 ];
 
-const LEADGEN_METRICS_LIST = [
-  { id: 'L01', name: 'InMail ICP Targeted', type: 'textarea', category: 'InMail Outreach' },
-  { id: 'L02', name: 'InMails Sent', type: 'number', category: 'InMail Outreach' },
-  { id: 'L03', name: 'InMails Accepted', type: 'number', category: 'InMail Outreach' },
-  { id: 'L04', name: 'InMails Declined', type: 'number', category: 'InMail Outreach' },
-  { id: 'L05', name: 'InMail Acceptance Rate', type: 'auto', category: 'InMail Outreach', calc: (vals: any) => (Number(vals.L02) > 0 ? (Number(vals.L03) / Number(vals.L02)) * 100 : 0).toFixed(1) + '%' },
-  { id: 'L06', name: 'InMail Hot Leads', type: 'number', category: 'InMail Outreach' },
-  { id: 'L07', name: 'ICP Targeted — Connection Requests', type: 'textarea', category: 'Connection Request Outreach' },
-  { id: 'L08', name: 'Message Narrative / Strategy Used', type: 'textarea', category: 'Connection Request Outreach' },
-  { id: 'L09', name: 'Target Set by Outreach Owner', type: 'number', category: 'Connection Request Outreach' },
-  { id: 'L10', name: 'Connection Requests Sent', type: 'number', category: 'Connection Request Outreach' },
-  { id: 'L11', name: 'Accepted Invitations', type: 'number', category: 'Connection Request Outreach' },
-  { id: 'L12', name: 'Acceptance Rate', type: 'auto', category: 'Connection Request Outreach', calc: (vals: any) => (Number(vals.L10) > 0 ? (Number(vals.L11) / Number(vals.L10)) * 100 : 0).toFixed(1) + '%' },
-  { id: 'L13', name: 'Answered Messages', type: 'number', category: 'Connection Request Outreach' },
-  { id: 'L14', name: 'Response Rate', type: 'auto', category: 'Connection Request Outreach', calc: (vals: any) => (Number(vals.L11) > 0 ? (Number(vals.L13) / Number(vals.L11)) * 100 : 0).toFixed(1) + '%' },
-  { id: 'L15', name: 'Positive Replies', type: 'number', category: 'Connection Request Outreach' },
-  { id: 'L16', name: 'Negative Replies', type: 'number', category: 'Connection Request Outreach' },
-  { id: 'L17', name: 'Positive Response Rate', type: 'auto', category: 'Connection Request Outreach', calc: (vals: any) => (Number(vals.L13) > 0 ? (Number(vals.L15) / Number(vals.L13)) * 100 : 0).toFixed(1) + '%' },
-  { id: 'L18', name: 'Negative Response Rate', type: 'auto', category: 'Connection Request Outreach', calc: (vals: any) => (Number(vals.L13) > 0 ? (Number(vals.L16) / Number(vals.L13)) * 100 : 0).toFixed(1) + '%' },
-  { id: 'L19', name: 'Existing Connections Messages Sent', type: 'number', category: 'Existing Connections Outreach' },
-  { id: 'L20', name: 'Existing Connections Answered', type: 'number', category: 'Existing Connections Outreach' },
-  { id: 'L21', name: 'Existing Connections Response Rate', type: 'auto', category: 'Existing Connections Outreach', calc: (vals: any) => (Number(vals.L19) > 0 ? (Number(vals.L20) / Number(vals.L19)) * 100 : 0).toFixed(1) + '%' },
-  { id: 'L22', name: 'Existing Connections Hot Leads', type: 'number', category: 'Existing Connections Outreach' },
-  { id: 'L23', name: 'Hot Leads Total', type: 'number', category: 'Pipeline & Conversion' },
-  { id: 'L24', name: 'Meetings Booked', type: 'number', category: 'Pipeline & Conversion' },
-  { id: 'L25', name: 'Meetings Attended', type: 'number', category: 'Pipeline & Conversion' },
-  { id: 'L26', name: 'Meeting Show Up Rate', type: 'auto', category: 'Pipeline & Conversion', calc: (vals: any) => (Number(vals.L24) > 0 ? (Number(vals.L25) / Number(vals.L24)) * 100 : 0).toFixed(1) + '%' },
-  { id: 'L27', name: 'Leads Generated', type: 'number', category: 'Pipeline & Conversion' },
-  { id: 'L28', name: 'Cold Emails Sent', type: 'number', category: 'Cold Email' },
-  { id: 'L29', name: 'Cold Emails Opened', type: 'number', category: 'Cold Email' },
-  { id: 'L30', name: 'Cold Email Open Rate', type: 'auto', category: 'Cold Email', calc: (vals: any) => (Number(vals.L28) > 0 ? (Number(vals.L29) / Number(vals.L28)) * 100 : 0).toFixed(1) + '%' },
-  { id: 'L31', name: 'Cold Email Replies', type: 'number', category: 'Cold Email' },
-  { id: 'L32', name: 'Cold Email Positive Replies', type: 'number', category: 'Cold Email' },
-  { id: 'L33', name: 'Cold Email Negative Replies', type: 'number', category: 'Cold Email' },
-  { id: 'L34', name: 'Cold Email Response Rate', type: 'auto', category: 'Cold Email', calc: (vals: any) => (Number(vals.L28) > 0 ? (Number(vals.L31) / Number(vals.L28)) * 100 : 0).toFixed(1) + '%' },
-  { id: 'L35', name: 'What\'s Working (Lead Gen)', type: 'textarea', category: 'Qualitative' },
-  { id: 'L36', name: 'What\'s Not Working (Lead Gen)', type: 'textarea', category: 'Qualitative' },
   { id: 'L37', name: 'Happiness Index', type: 'slider', category: 'Qualitative' },
 ];
 
-const WEEKS = ['2026-W12', '2026-W13', '2026-W14', '2026-W15', '2026-W16'];
+const TJ_METRICS = {
+  instagram: [
+    { id: 'TJI01', name: 'Stories Posted', type: 'number' },
+    { id: 'TJI02', name: 'Carousels Posted', type: 'number' },
+    { id: 'TJI03', name: 'Reels Posted', type: 'number' },
+    { id: 'TJI04', name: 'Total Posts', type: 'auto', calc: (vals: any) => (Number(vals.TJI02) || 0) + (Number(vals.TJI03) || 0) },
+    { id: 'TJI05', name: 'Impressions', type: 'number' },
+    { id: 'TJI06', name: 'Likes', type: 'number' },
+    { id: 'TJI07', name: 'Comments', type: 'number' },
+    { id: 'TJI08', name: 'Shares', type: 'number' },
+    { id: 'TJI09', name: 'Saves', type: 'number' },
+    { id: 'TJI10', name: 'Followers Gained', type: 'number' },
+    { id: 'TJI11', name: 'Total Follower Count', type: 'number' },
+    { id: 'TJI12', name: 'What content went out', type: 'textarea' },
+  ],
+  youtube: [
+    { id: 'TJY01', name: 'Shorts Uploaded', type: 'number' },
+    { id: 'TJY02', name: 'CTR (%)', type: 'percentage' },
+    { id: 'TJY03', name: 'Avg View Duration (seconds)', type: 'number' },
+    { id: 'TJY04', name: 'Views', type: 'number' },
+    { id: 'TJY05', name: 'Impressions', type: 'number' },
+    { id: 'TJY06', name: 'Likes', type: 'number' },
+    { id: 'TJY07', name: 'Comments', type: 'number' },
+    { id: 'TJY08', name: 'New Subscribers', type: 'number' },
+    { id: 'TJY09', name: 'Total Subscriber Count', type: 'number' },
+    { id: 'TJY10', name: 'Total Watch Time (hours)', type: 'number' },
+  ],
+  linkedinNewsletter: [
+    { id: 'TJN01', name: 'Subscriber Count', type: 'number' },
+    { id: 'TJN02', name: 'Issues Sent', type: 'number' },
+    { id: 'TJN03', name: 'Email Open Rate (%)', type: 'percentage' },
+    { id: 'TJN04', name: 'Members Reached', type: 'number' },
+    { id: 'TJN05', name: 'Impressions', type: 'number' },
+  ],
+  emailNewsletter: [
+    { id: 'TJE01', name: 'Subscriber Count', type: 'number' },
+    { id: 'TJE02', name: 'Emails Sent', type: 'number' },
+    { id: 'TJE03', name: 'Delivered', type: 'number' },
+    { id: 'TJE04', name: 'Open Rate (%)', type: 'percentage' },
+    { id: 'TJE05', name: 'Clicked', type: 'number' },
+    { id: 'TJE06', name: 'Replies', type: 'number' },
+    { id: 'TJE07', name: 'Unsubscribed', type: 'number' },
+  ],
+  podcast: [
+    { id: 'TJP01', name: 'Episodes Recorded', type: 'number' },
+    { id: 'TJP02', name: 'Episodes Live', type: 'number' },
+    { id: 'TJP03', name: 'Listens / Downloads', type: 'number' },
+    { id: 'TJP04', name: 'Listener Growth', type: 'number' },
+    { id: 'TJP05', name: 'Guest Name', type: 'text' },
+    { id: 'TJP06', name: 'Episode Topic', type: 'text' },
+  ],
+  videoPipeline: [
+    { id: 'TJV01', name: 'Videos Sent to Atharwa', type: 'number' },
+    { id: 'TJV02', name: 'Videos Edited', type: 'number' },
+    { id: 'TJV03', name: 'Videos Shot', type: 'number' },
+    { id: 'TJV04', name: 'Videos Shot Pending Editing', type: 'number' },
+    { id: 'TJV05', name: 'Videos in Pipeline for Edit', type: 'number' },
+    { id: 'TJV06', name: 'Videos Posted', type: 'number' },
+    { id: 'TJV07', name: 'Videos Pending Approval', type: 'number' },
+    { id: 'TJV08', name: 'Stories Posted', type: 'number' },
+    { id: 'TJV09', name: 'Carousels Made', type: 'number' },
+    { id: 'TJV10', name: 'Static Posts', type: 'number' },
+    { id: 'TJV11', name: 'Feedback Given by TJ to Atharwa', type: 'number' },
+    { id: 'TJV12', name: 'TJ Idea Approvals', type: 'number' },
+    { id: 'TJV13', name: 'TJ Ideas Approval Pending', type: 'number' },
+  ]
+};
+
+const SALES_METRICS = {
+  tjOutreach: [
+    { id: 'SO01', name: 'ICP Targeted', type: 'textarea' },
+    { id: 'SO02', name: 'Connection Requests Sent', type: 'number' },
+    { id: 'SO03', name: 'Accepted Invitations', type: 'number' },
+    { id: 'SO04', name: 'Acceptance Rate', type: 'auto', calc: (vals: any) => (Number(vals.SO02) > 0 ? (Number(vals.SO03) / Number(vals.SO02)) * 100 : 0).toFixed(1) + '%' },
+    { id: 'SO05', name: 'Answered Messages', type: 'number' },
+    { id: 'SO06', name: 'Response Rate', type: 'auto', calc: (vals: any) => (Number(vals.SO03) > 0 ? (Number(vals.SO05) / Number(vals.SO03)) * 100 : 0).toFixed(1) + '%' },
+    { id: 'SO07', name: 'Hot Leads', type: 'number' },
+    { id: 'SO08', name: 'Negative Replies', type: 'number' },
+    { id: 'SO09', name: 'Generic Prospects', type: 'number' },
+    { id: 'SO10', name: 'Meetings Booked', type: 'number' },
+  ],
+  jahnviOutreach: [
+    { id: 'SO11', name: 'ICP Targeted', type: 'textarea' },
+    { id: 'SO12', name: 'Connection Requests Sent', type: 'number' },
+    { id: 'SO13', name: 'Accepted Invitations', type: 'number' },
+    { id: 'SO14', name: 'Acceptance Rate', type: 'auto', calc: (vals: any) => (Number(vals.SO12) > 0 ? (Number(vals.SO13) / Number(vals.SO12)) * 100 : 0).toFixed(1) + '%' },
+    { id: 'SO15', name: 'Answered Messages', type: 'number' },
+    { id: 'SO16', name: 'Response Rate', type: 'auto', calc: (vals: any) => (Number(vals.SO13) > 0 ? (Number(vals.SO15) / Number(vals.SO13)) * 100 : 0).toFixed(1) + '%' },
+    { id: 'SO17', name: 'Hot Leads', type: 'number' },
+    { id: 'SO18', name: 'Negative Replies', type: 'number' },
+    { id: 'SO19', name: 'Generic Prospects', type: 'number' },
+  ],
+  shirinOutreach: [
+    { id: 'SO20', name: 'InMail ICP Targeted', type: 'textarea' },
+    { id: 'SO21', name: 'InMails Sent', type: 'number' },
+    { id: 'SO22', name: 'InMails Accepted', type: 'number' },
+    { id: 'SO23', name: 'InMails Declined', type: 'number' },
+    { id: 'SO24', name: 'InMail Acceptance Rate', type: 'auto', calc: (vals: any) => (Number(vals.SO21) > 0 ? (Number(vals.SO22) / Number(vals.SO21)) * 100 : 0).toFixed(1) + '%' },
+    { id: 'SO25', name: 'Connection Requests Sent', type: 'number' },
+    { id: 'SO26', name: 'Accepted Invitations', type: 'number' },
+    { id: 'SO27', name: 'Acceptance Rate', type: 'auto', calc: (vals: any) => (Number(vals.SO25) > 0 ? (Number(vals.SO26) / Number(vals.SO25)) * 100 : 0).toFixed(1) + '%' },
+    { id: 'SO28', name: 'Answered Messages', type: 'number' },
+    { id: 'SO29', name: 'Response Rate', type: 'auto', calc: (vals: any) => (Number(vals.SO26) > 0 ? (Number(vals.SO28) / Number(vals.SO26)) * 100 : 0).toFixed(1) + '%' },
+    { id: 'SO30', name: 'Hot Leads', type: 'number' },
+    { id: 'SO31', name: 'Negative Replies', type: 'number' },
+    { id: 'SO32', name: 'Generic Prospects', type: 'number' },
+  ],
+  coldEmail: [
+    { id: 'SO33', name: 'Emails Sent', type: 'number' },
+    { id: 'SO34', name: 'Emails Opened', type: 'number' },
+    { id: 'SO35', name: 'Open Rate', type: 'auto', calc: (vals: any) => (Number(vals.SO33) > 0 ? (Number(vals.SO34) / Number(vals.SO33)) * 100 : 0).toFixed(1) + '%' },
+    { id: 'SO36', name: 'Replies Received', type: 'number' },
+    { id: 'SO37', name: 'Email Response Rate', type: 'auto', calc: (vals: any) => (Number(vals.SO33) > 0 ? (Number(vals.SO36) / Number(vals.SO33)) * 100 : 0).toFixed(1) + '%' },
+    { id: 'SO38', name: 'Positive Replies', type: 'number' },
+    { id: 'SO39', name: 'Negative Replies', type: 'number' },
+  ],
+  meetingTracker: [
+    { id: 'SO40', name: 'Meetings Booked via LinkedIn', type: 'number' },
+    { id: 'SO41', name: 'Meetings Booked via Cold Email', type: 'number' },
+    { id: 'SO42', name: 'Meetings Booked via Referral', type: 'number' },
+    { id: 'SO43', name: 'Meetings Booked via Other (TiE/WhatsApp/WeWork)', type: 'number' },
+    { id: 'SO44', name: 'Total Meetings Booked', type: 'auto', calc: (vals: any) => (Number(vals.SO40) || 0) + (Number(vals.SO41) || 0) + (Number(vals.SO42) || 0) + (Number(vals.SO43) || 0) },
+    { id: 'SO45', name: 'Meetings Completed', type: 'number' },
+    { id: 'SO46', name: 'No-Show / Rescheduled', type: 'number' },
+    { id: 'SO47', name: 'Meeting Completion Rate', type: 'auto', calc: (vals: any) => (Number(vals.SO44) > 0 ? (Number(vals.SO45) / Number(vals.SO44)) * 100 : 0).toFixed(1) + '%' },
+    { id: 'SO48', name: 'Leads Added to CRM', type: 'number' },
+    { id: 'SO49', name: 'Proposals Sent', type: 'number' },
+    { id: 'SO50', name: 'Follow-ups Sent', type: 'number' },
+    { id: 'SO51', name: 'Conversions (New Clients signed)', type: 'number' },
+    { id: 'SO52', name: 'Conversion Rate', type: 'auto', calc: (vals: any) => (Number(vals.SO44) > 0 ? (Number(vals.SO51) / Number(vals.SO44)) * 100 : 0).toFixed(1) + '%' },
+    { id: 'SO53', name: 'Average Deal Size (₹)', type: 'number' },
+    { id: 'SO54', name: 'Total Revenue from Conversions', type: 'auto', calc: (vals: any) => (Number(vals.SO51) || 0) * (Number(vals.SO53) || 0) },
+  ]
+};
+
+
+const getWeekRange = (weeksAgo = 0) => {
+  const now = new Date();
+  const day = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((day + 6) % 7) - (weeksAgo * 7));
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  
+  const fmt = (d: Date) => d.toLocaleDateString('en-GB', { 
+    day: 'numeric', month: 'short', year: 'numeric' 
+  });
+  
+  return {
+    label: `${fmt(monday)} – ${fmt(sunday)}`,
+    weekStart: monday.toISOString().split('T')[0], // used as Firestore document ID
+    weekEnd: sunday.toISOString().split('T')[0]
+  };
+};
+
+const LAST_12_WEEKS = Array.from({ length: 12 }, (_, i) => getWeekRange(i));
+const CURRENT_WEEK = LAST_12_WEEKS[0];
+
 
 // --- Helper Components ---
 
@@ -197,18 +336,94 @@ const Card = ({ children, className = "" }: { children: React.ReactNode, classNa
   </div>
 );
 
-const Badge = ({ children, variant = "default" }: { children: React.ReactNode, variant?: "default" | "accent" | "outline" }) => {
+const Badge = ({ children, variant = "default", className = "" }: { children: React.ReactNode, variant?: "default" | "accent" | "outline" | "gold", className?: string }) => {
   const styles = variant === "outline" 
     ? "border border-gray-200 text-gray-500" 
     : variant === "accent"
     ? "bg-accent text-accent-foreground shadow-sm"
+    : variant === "gold"
+    ? "bg-yellow-400 text-black shadow-sm"
     : "bg-black text-white";
   return (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${styles}`}>
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${styles} ${className}`}>
       {children}
     </span>
   );
 };
+
+const checkAndUpdateHighScore = async (clientId: string, metricId: string, newValue: number, weekStart: string) => {
+  if (newValue === undefined || newValue === null || isNaN(newValue)) return false;
+  
+  const hsRef = doc(db, 'highScores', clientId, 'metrics', metricId);
+  const hsSnap = await getDoc(hsRef);
+  
+  if (!hsSnap.exists() || newValue > hsSnap.data().lifetimeHigh) {
+    await setDoc(hsRef, {
+      lifetimeHigh: newValue,
+      achievedWeek: weekStart,
+      previousHigh: hsSnap.exists() ? hsSnap.data().lifetimeHigh : null,
+      updatedAt: serverTimestamp()
+    });
+    return true; // signals new record
+  }
+  return false;
+};
+
+const exportAllData = async (clients: Client[]) => {
+  const loadId = toast.loading('Generating enterprise export...');
+  try {
+    const wb = XLSX.utils.book_new();
+    
+    // Sheet 1: Client Performance
+    const clientRows: any[] = [];
+    for (const client of clients) {
+      for (const perf of client.weeklyPerformance) {
+        const row: any = {
+          'Client Name': client.name,
+          'Content Manager': client.contentManagerName,
+          'Lead Gen Manager': client.leadGenManagerName,
+          'Week': perf.weekLabel || perf.weekId
+        };
+        Object.entries(perf.contentMetrics || {}).forEach(([id, m]: [string, any]) => {
+          row[`CONTENT_${id}`] = m.value;
+        });
+        Object.entries(perf.leadGenMetrics || {}).forEach(([id, m]: [string, any]) => {
+          row[`LEADGEN_${id}`] = m.value;
+        });
+        clientRows.push(row);
+      }
+    }
+    const ws1 = XLSX.utils.json_to_sheet(clientRows);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Client Performance');
+
+    // Sheet 2: TJ Personal Brand
+    const tjSnap = await getDocs(collection(db, 'tjPersonalBrand'));
+    const tjRows = tjSnap.docs.map(d => ({ week: d.id, ...d.data() }));
+    const ws2 = XLSX.utils.json_to_sheet(tjRows);
+    XLSX.utils.book_append_sheet(wb, ws2, 'TJ Brand');
+
+    // Sheet 3: Sales
+    const salesSnap = await getDocs(collection(db, 'salesData'));
+    const salesRows = salesSnap.docs.map(d => ({ week: d.id, ...d.data() }));
+    const ws3 = XLSX.utils.json_to_sheet(salesRows);
+    XLSX.utils.book_append_sheet(wb, ws3, 'Sales Outreach');
+
+    // Sheet 4: Hot Leads
+    const leadsSnap = await getDocs(collection(db, 'salesLeads'));
+    const leadsRows = leadsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const ws4 = XLSX.utils.json_to_sheet(leadsRows);
+    XLSX.utils.book_append_sheet(wb, ws4, 'Hot Leads');
+
+    const date = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `Myntmore_Export_${date}.xlsx`);
+    toast.success('Export complete', { id: loadId });
+  } catch (error) {
+    console.error(error);
+    toast.error('Export failed', { id: loadId });
+  }
+};
+
+
 
 // --- Sub-components (defined outside to prevent re-creation on render) ---
 
@@ -513,47 +728,67 @@ const TeamView = ({ allUsers, invites, userId }: { allUsers: UserProfile[], invi
     </div>
   );
 };
-
-const DataEntryView = ({ clients, userProfile }: { clients: Client[], userProfile: UserProfile | null }) => {
-  const [selectedClient, setSelectedClient] = useState<string | null>(null);
-  const [selectedWeek, setSelectedWeek] = useState('2026-W16');
+const TJPersonalBrandView = ({ userProfile }: { userProfile: UserProfile | null }) => {
+  const [selectedWeek, setSelectedWeek] = useState(CURRENT_WEEK.weekStart);
   const [entryData, setEntryData] = useState<any>({});
+  const [highScores, setHighScores] = useState<{ [metricId: string]: HighScore }>({});
   const [isSaving, setIsSaving] = useState(false);
 
-  const client = clients.find(c => c.id === selectedClient);
-  const userRoleInClient = userProfile?.assignedClients?.find(a => a.clientId === selectedClient)?.role;
-  const canSeeContent = userProfile?.role === 'admin' || userRoleInClient === 'contentManager' || userProfile?.department === 'both';
-  const canSeeLeadGen = userProfile?.role === 'admin' || userRoleInClient === 'leadGenManager' || userProfile?.department === 'both';
+  useEffect(() => {
+    loadData();
+    loadHighScores();
+  }, [selectedWeek]);
 
-  const handleSave = async (submit = false) => {
-    if (!selectedClient) return;
+  const loadData = async () => {
+    const year = new Date(selectedWeek).getFullYear().toString();
+    const ref = doc(db, `tjPersonalBrand/${year}`, selectedWeek);
+    const snap = await getDoc(ref);
+    setEntryData(snap.exists() ? snap.data() : {});
+  };
+
+  const loadHighScores = async () => {
+    const q = query(collection(db, 'highScores', 'tj', 'metrics'));
+    const snap = await getDocs(q);
+    const scores: any = {};
+    snap.docs.forEach(d => scores[d.id] = d.data());
+    setHighScores(scores);
+  };
+
+  const handleSave = async () => {
     setIsSaving(true);
-    const loadId = toast.loading('Syncing OS data...');
+    const loadId = toast.loading('Syncing TJ Brand data...');
     try {
-      const docId = selectedWeek;
-      const year = '2026';
-      const ref = doc(db, `weeklyData/${selectedClient}/${year}`, docId);
+      const year = new Date(selectedWeek).getFullYear().toString();
+      const ref = doc(db, `tjPersonalBrand/${year}`, selectedWeek);
+      const weekData = LAST_12_WEEKS.find(w => w.weekStart === selectedWeek);
 
-      const updatePayload: any = {};
-      if (canSeeContent) {
-        updatePayload.contentMetrics = entryData.contentMetrics || {};
-        updatePayload.lastUpdatedContent = serverTimestamp();
-        if (submit) updatePayload.submittedAtContent = serverTimestamp();
+      const payload = {
+        ...entryData,
+        weekStart: weekData?.weekStart,
+        weekEnd: weekData?.weekEnd,
+        weekLabel: weekData?.label,
+        lastUpdatedBy: userProfile?.uid,
+        lastUpdatedAt: serverTimestamp()
+      };
+
+      await setDoc(ref, payload, { merge: true });
+
+      // High scores
+      for (const [channel, metrics] of Object.entries(TJ_METRICS)) {
+        for (const m of metrics as any[]) {
+          if (m.type === 'number' || m.type === 'percentage') {
+            const val = entryData[channel]?.[m.id];
+            if (typeof val === 'number') {
+              const isNew = await checkAndUpdateHighScore('tj', m.id, val, selectedWeek);
+              if (isNew) toast.success(`🏆 NEW TJ RECORD: ${m.name}!`);
+            }
+          }
+        }
       }
-      if (canSeeLeadGen) {
-        updatePayload.leadGenMetrics = entryData.leadGenMetrics || {};
-        updatePayload.lastUpdatedLeadGen = serverTimestamp();
-        if (submit) updatePayload.submittedAtLeadGen = serverTimestamp();
-      }
 
-      await setDoc(ref, { 
-        ...updatePayload,
-        weekOf: new Date().toISOString() 
-      }, { merge: true });
-
-      toast.success(submit ? 'Week Submitted Successfully' : 'Draft Saved', { id: loadId });
+      toast.success('TJ Brand data synced', { id: loadId });
+      loadHighScores();
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `weeklyData/${selectedClient}/2026/${selectedWeek}`);
       toast.error('Sync failed', { id: loadId });
     } finally {
       setIsSaving(false);
@@ -561,30 +796,713 @@ const DataEntryView = ({ clients, userProfile }: { clients: Client[], userProfil
   };
 
   return (
+    <div className="space-y-10 max-w-6xl mx-auto">
+      <div className="flex justify-between items-end">
+        <div className="space-y-2">
+          <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Reporting Week</label>
+          <select 
+            className="w-full bg-white border border-gray-100 px-6 py-4 rounded-2xl outline-none shadow-sm font-bold focus:ring-2 ring-accent/20"
+            value={selectedWeek}
+            onChange={(e) => setSelectedWeek(e.target.value)}
+          >
+            {LAST_12_WEEKS.map(w => <option key={w.weekStart} value={w.weekStart}>{w.label}</option>)}
+          </select>
+        </div>
+        <button 
+          onClick={handleSave}
+          disabled={isSaving}
+          className="px-10 py-4 bg-black text-white font-black rounded-2xl shadow-xl hover:scale-[1.01] transition-all"
+        >
+          Update Brand Records
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {Object.entries(TJ_METRICS).map(([channel, metrics]) => (
+          <Card key={channel} className="p-8 space-y-6">
+            <h3 className="text-sm font-black uppercase tracking-[0.2em] border-b border-gray-50 pb-4">{channel.replace(/([A-Z])/g, ' $1')}</h3>
+            <div className="grid grid-cols-1 gap-6">
+              {metrics.map((m: any) => (
+                <div key={m.id} className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-gray-500">{m.name}</label>
+                    {highScores[m.id] && (m.type === 'number' || m.type === 'percentage') && (
+                      <span className="text-[9px] font-bold text-yellow-600">🏆 BEST: {highScores[m.id].lifetimeHigh}</span>
+                    )}
+                  </div>
+                  {m.type === 'textarea' ? (
+                    <textarea 
+                      className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none text-sm min-h-[100px]"
+                      value={entryData[channel]?.[m.id] || ''}
+                      onChange={(e) => setEntryData({ ...entryData, [channel]: { ...entryData[channel], [m.id]: e.target.value } })}
+                    />
+                  ) : m.type === 'auto' ? (
+                    <div className="bg-gray-50 p-4 rounded-xl font-black text-xl text-gray-400">
+                      {m.calc(entryData[channel] || {})}
+                    </div>
+                  ) : (
+                    <input 
+                      type="number"
+                      className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none font-bold"
+                      value={entryData[channel]?.[m.id] ?? ''}
+                      onChange={(e) => setEntryData({ ...entryData, [channel]: { ...entryData[channel], [m.id]: Number(e.target.value) } })}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const SalesOutreachView = ({ userProfile }: { userProfile: UserProfile | null }) => {
+  const [activeTab, setActiveTab] = useState<'data' | 'leads'>('data');
+  const [selectedWeek, setSelectedWeek] = useState(CURRENT_WEEK.weekStart);
+  const [entryData, setEntryData] = useState<any>({});
+  const [leads, setLeads] = useState<any[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isAddingLead, setIsAddingLead] = useState(false);
+  const [newLead, setNewLead] = useState<any>({ status: 'New', probability: 50, source: 'LinkedIn' });
+
+  useEffect(() => {
+    if (activeTab === 'data') {
+      loadData();
+    } else {
+      loadLeads();
+    }
+  }, [selectedWeek, activeTab]);
+
+  const loadData = async () => {
+    const year = new Date(selectedWeek).getFullYear().toString();
+    const ref = doc(db, `salesData/${year}`, selectedWeek);
+    const snap = await getDoc(ref);
+    setEntryData(snap.exists() ? snap.data() : {});
+  };
+
+  const loadLeads = async () => {
+    const q = query(collection(db, 'salesLeads'), orderBy('lastUpdated', 'desc'));
+    const snap = await getDocs(q);
+    setLeads(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  };
+
+  const handleSaveData = async () => {
+    setIsSaving(true);
+    const loadId = toast.loading('Syncing Sales data...');
+    try {
+      const year = new Date(selectedWeek).getFullYear().toString();
+      const ref = doc(db, `salesData/${year}`, selectedWeek);
+      const weekData = LAST_12_WEEKS.find(w => w.weekStart === selectedWeek);
+
+      const payload = {
+        ...entryData,
+        weekStart: weekData?.weekStart,
+        weekEnd: weekData?.weekEnd,
+        weekLabel: weekData?.label,
+        lastUpdatedBy: userProfile?.uid,
+        lastUpdatedAt: serverTimestamp()
+      };
+
+      await setDoc(ref, payload, { merge: true });
+      toast.success('Sales data synced', { id: loadId });
+    } catch (error) {
+      toast.error('Sync failed', { id: loadId });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const loadId = toast.loading('Adding lead to pipeline...');
+    try {
+      await addDoc(collection(db, 'salesLeads'), {
+        ...newLead,
+        lastUpdated: serverTimestamp(),
+        weightedValue: (Number(newLead.dealValue) || 0) * (Number(newLead.probability) / 100)
+      });
+      toast.success('Lead captured', { id: loadId });
+      setIsAddingLead(false);
+      loadLeads();
+    } catch (error) {
+      toast.error('Failed to add lead', { id: loadId });
+    }
+  };
+
+  return (
+    <div className="space-y-8 max-w-6xl mx-auto">
+      <div className="flex gap-4 p-1 bg-gray-100 rounded-2xl w-fit">
+        <button 
+          onClick={() => setActiveTab('data')}
+          className={`px-8 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'data' ? 'bg-white text-black shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+        >
+          Weekly Outreach
+        </button>
+        <button 
+          onClick={() => setActiveTab('leads')}
+          className={`px-8 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'leads' ? 'bg-white text-black shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+        >
+          Hot Leads CRM
+        </button>
+      </div>
+
+      {activeTab === 'data' ? (
+        <div className="space-y-10">
+          <div className="flex justify-between items-end">
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Reporting Week</label>
+              <select 
+                className="w-full bg-white border border-gray-100 px-6 py-4 rounded-2xl outline-none shadow-sm font-bold focus:ring-2 ring-accent/20"
+                value={selectedWeek}
+                onChange={(e) => setSelectedWeek(e.target.value)}
+              >
+                {LAST_12_WEEKS.map(w => <option key={w.weekStart} value={w.weekStart}>{w.label}</option>)}
+              </select>
+            </div>
+            <button 
+              onClick={handleSaveData}
+              disabled={isSaving}
+              className="px-10 py-4 bg-accent text-accent-foreground font-black rounded-2xl shadow-xl shadow-accent/20 hover:scale-[1.01] transition-all"
+            >
+              Sync Outreach Pulse
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {Object.entries(SALES_METRICS).map(([section, metrics]) => (
+              <Card key={section} className="p-8 space-y-6">
+                <h3 className="text-xs font-black uppercase tracking-[0.2em] border-b border-gray-50 pb-4">{section.replace(/([A-Z])/g, ' $1')}</h3>
+                <div className="grid grid-cols-1 gap-6">
+                  {metrics.map((m: any) => (
+                    <div key={m.id} className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500">{m.name}</label>
+                      {m.type === 'textarea' ? (
+                        <textarea 
+                          className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none text-sm min-h-[80px]"
+                          value={entryData[section]?.[m.id] || ''}
+                          onChange={(e) => setEntryData({ ...entryData, [section]: { ...entryData[section], [m.id]: e.target.value } })}
+                        />
+                      ) : m.type === 'auto' ? (
+                        <div className="bg-gray-50 p-4 rounded-xl font-black text-xl text-gray-400">
+                          {m.calc(entryData[section] || {})}
+                        </div>
+                      ) : (
+                        <input 
+                          type="number"
+                          className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none font-bold"
+                          value={entryData[section]?.[m.id] ?? ''}
+                          onChange={(e) => setEntryData({ ...entryData, [section]: { ...entryData[section], [m.id]: Number(e.target.value) } })}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-bold">Active Pipeline Leaderboard</h3>
+            <button 
+              onClick={() => setIsAddingLead(true)}
+              className="px-6 py-2 bg-yellow-400 text-black font-bold rounded-xl shadow-lg shadow-yellow-400/20 flex items-center gap-2"
+            >
+              <PlusCircle className="w-4 h-4" />
+              Add Lead
+            </button>
+          </div>
+
+          <Card className="overflow-hidden">
+            <table className="w-full text-left">
+              <thead className="bg-gray-50 text-[10px] font-mono uppercase tracking-widest text-gray-400">
+                <tr>
+                  <th className="px-6 py-4">Lead / Company</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Value (₹)</th>
+                  <th className="px-6 py-4">Weighted</th>
+                  <th className="px-6 py-4">Source</th>
+                  <th className="px-6 py-4">Owner</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {leads.sort((a, b) => (b.weightedValue || 0) - (a.weightedValue || 0)).map((lead) => (
+                  <tr key={lead.id} className="text-sm hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <p className="font-bold">{lead.leadName}</p>
+                      <p className="text-[10px] text-gray-400 font-mono">{lead.company}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <Badge variant={lead.status === 'Won' ? 'accent' : lead.status === 'Lost' ? 'outline' : 'default'} className={
+                        lead.status === 'Won' ? 'bg-green-500' : lead.status === 'Lost' ? 'bg-red-500' : ''
+                      }>{lead.status}</Badge>
+                    </td>
+                    <td className="px-6 py-4 font-bold">₹{(lead.dealValue || 0).toLocaleString()}</td>
+                    <td className="px-6 py-4 font-black text-accent">₹{(lead.weightedValue || 0).toLocaleString()}</td>
+                    <td className="px-6 py-4 text-xs">{lead.source}</td>
+                    <td className="px-6 py-4 text-xs font-medium">{lead.owner}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+
+          {isAddingLead && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-lg">
+                <Card className="p-8 space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-bold">New Pipeline Entry</h3>
+                    <button onClick={() => setIsAddingLead(false)} className="text-gray-400 hover:text-black">✕</button>
+                  </div>
+                  <form onSubmit={handleAddLead} className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-[10px] font-mono uppercase text-gray-400">Lead Name</label>
+                      <input required className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" onChange={e => setNewLead({...newLead, leadName: e.target.value})} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase text-gray-400">Company</label>
+                      <input required className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" onChange={e => setNewLead({...newLead, company: e.target.value})} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase text-gray-400">Owner</label>
+                      <input required className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" onChange={e => setNewLead({...newLead, owner: e.target.value})} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase text-gray-400">Deal Value (₹)</label>
+                      <input type="number" required className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" onChange={e => setNewLead({...newLead, dealValue: Number(e.target.value)})} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase text-gray-400">Probability (%)</label>
+                      <input type="number" required className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" value={newLead.probability} onChange={e => setNewLead({...newLead, probability: Number(e.target.value)})} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase text-gray-400">Source</label>
+                      <select className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" onChange={e => setNewLead({...newLead, source: e.target.value})}>
+                        <option>LinkedIn</option>
+                        <option>Cold Email</option>
+                        <option>Referral</option>
+                        <option>Exhibition</option>
+                        <option>Other</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase text-gray-400">Status</label>
+                      <select className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" onChange={e => setNewLead({...newLead, status: e.target.value})}>
+                        <option>New</option>
+                        <option>Contacted</option>
+                        <option>Meeting Booked</option>
+                        <option>Proposal Sent</option>
+                        <option>Negotiation</option>
+                        <option>Won</option>
+                        <option>Lost</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-[10px] font-mono uppercase text-gray-400">Notes</label>
+                      <textarea className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none min-h-[80px]" onChange={e => setNewLead({...newLead, notes: e.target.value})} />
+                    </div>
+                    <button type="submit" className="col-span-2 py-4 bg-yellow-400 text-black font-black rounded-xl shadow-lg mt-4">Deploy Lead Record</button>
+                  </form>
+                </Card>
+              </motion.div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+const ClientSettingsView = ({ client, onClose }: { client: Client, onClose: () => void }) => {
+  const [settings, setSettings] = useState<ClientSettings>({
+    activeContentMetrics: CONTENT_METRICS_LIST.map(m => m.id),
+    activeLeadGenMetrics: LEADGEN_METRICS_LIST.map(m => m.id),
+    customTargets: {}
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+  }, [client.id]);
+
+  const loadSettings = async () => {
+    const ref = doc(db, 'clientSettings', client.id);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      setSettings(snap.data() as ClientSettings);
+    }
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await setDoc(doc(db, 'clientSettings', client.id), settings);
+      toast.success('Settings updated');
+      onClose();
+    } catch (error) {
+      toast.error('Failed to save settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const toggleMetric = (id: string, type: 'content' | 'leadgen') => {
+    const key = type === 'content' ? 'activeContentMetrics' : 'activeLeadGenMetrics';
+    const current = settings[key] || [];
+    const updated = current.includes(id) ? current.filter(m => m !== id) : [...current, id];
+    setSettings({ ...settings, [key]: updated });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-4xl h-[80vh] flex flex-col">
+        <Card className="p-8 space-y-6 flex-1 overflow-hidden flex flex-col">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-xl font-bold">Configure: {client.name}</h3>
+              <p className="text-xs text-gray-400 font-mono">CLIENT_ID: {client.id}</p>
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-black">✕</button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-8 pr-2 custom-scrollbar">
+            <div className="space-y-4">
+              <h4 className="text-xs font-black uppercase tracking-widest text-accent">Active Content Metrics</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {CONTENT_METRICS_LIST.map(m => (
+                  <label key={m.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent"
+                      checked={settings.activeContentMetrics?.includes(m.id)}
+                      onChange={() => toggleMetric(m.id, 'content')}
+                    />
+                    <span className="text-xs font-medium">{m.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-xs font-black uppercase tracking-widest text-accent">Active Lead Gen Metrics</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {LEADGEN_METRICS_LIST.map(m => (
+                  <label key={m.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent"
+                      checked={settings.activeLeadGenMetrics?.includes(m.id)}
+                      onChange={() => toggleMetric(m.id, 'leadgen')}
+                    />
+                    <span className="text-xs font-medium">{m.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-gray-100 flex gap-4">
+            <button onClick={onClose} className="px-8 py-3 font-bold text-gray-400">Cancel</button>
+            <button 
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex-1 py-4 bg-accent text-accent-foreground font-black rounded-xl shadow-lg shadow-accent/20"
+            >
+              Commit Configuration
+            </button>
+          </div>
+        </Card>
+      </motion.div>
+    </div>
+  );
+};
+
+const DataEntryView = ({ clients, userProfile }: { clients: Client[], userProfile: UserProfile | null }) => {
+  const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState(CURRENT_WEEK.weekStart);
+  const [activeDataTab, setActiveDataTab] = useState<'content' | 'leadgen'>('content');
+  const [entryData, setEntryData] = useState<any>({ contentMetrics: {}, leadGenMetrics: {} });
+  const [highScores, setHighScores] = useState<{ [metricId: string]: HighScore }>({});
+  const [clientSettings, setClientSettings] = useState<ClientSettings | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<string[]>(['InMail Outreach', 'Connection Request Outreach', 'Existing Connections', 'Pipeline & Conversion', 'Cold Email', 'Qualitative + Happiness', 'Production Pipeline', 'Post Output', 'Performance', 'Engagement Activity', 'Delivery & Reporting', 'Qualitative']);
+
+  const client = clients.find(c => c.id === selectedClient);
+  
+  useEffect(() => {
+    if (selectedClient && selectedWeek) {
+      loadWeekData();
+      loadHighScores();
+      loadClientSettings();
+    }
+  }, [selectedClient, selectedWeek]);
+
+  const loadClientSettings = async () => {
+    if (!selectedClient) return;
+    const ref = doc(db, 'clientSettings', selectedClient);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      setClientSettings(snap.data() as ClientSettings);
+    } else {
+      setClientSettings({
+        activeContentMetrics: CONTENT_METRICS_LIST.map(m => m.id),
+        activeLeadGenMetrics: LEADGEN_METRICS_LIST.map(m => m.id),
+        customTargets: {}
+      });
+    }
+  };
+
+
+  const loadWeekData = async () => {
+    if (!selectedClient) return;
+    const year = new Date(selectedWeek).getFullYear().toString();
+    const ref = doc(db, `weeklyData/${selectedClient}/${year}`, selectedWeek);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      setEntryData(snap.data());
+    } else {
+      setEntryData({ contentMetrics: {}, leadGenMetrics: {} });
+    }
+  };
+
+  const loadHighScores = async () => {
+    if (!selectedClient) return;
+    const q = query(collection(db, 'highScores', selectedClient, 'metrics'));
+    const snap = await getDocs(q);
+    const scores: any = {};
+    snap.docs.forEach(d => scores[d.id] = d.data());
+    setHighScores(scores);
+  };
+
+  const userRoleInClient = userProfile?.assignedClients?.find(a => a.clientId === selectedClient)?.role;
+  const isAdmin = userProfile?.role === 'admin';
+  const canSeeContent = isAdmin || userRoleInClient === 'contentManager' || userProfile?.department === 'both' || userProfile?.department === 'content';
+  const canSeeLeadGen = isAdmin || userRoleInClient === 'leadGenManager' || userProfile?.department === 'both' || userProfile?.department === 'leadgen';
+
+  const handleSave = async (submit = false) => {
+    if (!selectedClient) return;
+    setIsSaving(true);
+    const loadId = toast.loading('Syncing OS data...');
+    try {
+      const year = new Date(selectedWeek).getFullYear().toString();
+      const weekRef = doc(db, `weeklyData/${selectedClient}/${year}`, selectedWeek);
+      const weekData = LAST_12_WEEKS.find(w => w.weekStart === selectedWeek);
+
+      const updatePayload: any = {
+        weekStart: weekData?.weekStart,
+        weekEnd: weekData?.weekEnd,
+        weekLabel: weekData?.label,
+        weekOf: new Date(selectedWeek).toISOString()
+      };
+
+      const metricsToUpdate = activeDataTab === 'content' ? entryData.contentMetrics : entryData.leadGenMetrics;
+      const prefix = activeDataTab === 'content' ? 'contentMetrics' : 'leadGenMetrics';
+
+      Object.entries(metricsToUpdate).forEach(([id, data]: [string, any]) => {
+        updatePayload[`${prefix}.${id}`] = data;
+      });
+
+      updatePayload[`${prefix}.lastUpdatedBy`] = userProfile?.uid;
+      updatePayload[`${prefix}.lastUpdatedAt`] = serverTimestamp();
+      if (submit) {
+        updatePayload[`${prefix}.submittedAt`] = serverTimestamp();
+      }
+
+      await setDoc(weekRef, updatePayload, { merge: true });
+
+      // Check high scores for numeric metrics
+      const metricList = activeDataTab === 'content' ? CONTENT_METRICS_LIST : LEADGEN_METRICS_LIST;
+      for (const m of metricList) {
+        if (m.type === 'number') {
+          const val = metricsToUpdate[m.id]?.value;
+          if (typeof val === 'number') {
+            const isNewHigh = await checkAndUpdateHighScore(selectedClient, m.id, val, selectedWeek);
+            if (isNewHigh) {
+              toast.success(`🏆 NEW RECORD: ${m.name}!`, { duration: 5000 });
+            }
+          }
+        }
+      }
+
+      toast.success(submit ? 'Week Submitted Successfully' : 'Draft Saved', { id: loadId });
+      loadHighScores(); // Refresh high scores
+    } catch (error) {
+      console.error(error);
+      toast.error('Sync failed', { id: loadId });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const toggleSection = (name: string) => {
+    setExpandedSections(prev => 
+      prev.includes(name) ? prev.filter(s => s !== name) : [...prev, name]
+    );
+  };
+
+  const renderMetric = (m: any) => {
+    const section = activeDataTab === 'content' ? 'contentMetrics' : 'leadGenMetrics';
+    const metricData = entryData[section]?.[m.id] || {};
+    const highScore = highScores[m.id];
+
+    return (
+      <div key={m.id} className="space-y-3 p-4 bg-white rounded-2xl border border-gray-50 shadow-sm">
+        <div className="flex justify-between items-start">
+          <div className="space-y-1">
+            <h4 className="font-bold text-sm">{m.name}</h4>
+            {highScore && m.type === 'number' && (
+              <p className="text-[10px] text-yellow-600 font-bold">
+                🏆 Lifetime best: {highScore.lifetimeHigh} (week of {new Date(highScore.achievedWeek).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })})
+              </p>
+            )}
+          </div>
+          {m.type === 'auto' && <Badge variant="outline">Auto</Badge>}
+        </div>
+        
+        {m.type === 'number' && (
+          <div className="flex gap-4">
+            <div className="flex-1 space-y-1">
+              <label className="text-[9px] font-mono text-gray-400 uppercase pl-1">Actual</label>
+              <input 
+                type="number"
+                className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none focus:ring-2 ring-accent/20"
+                value={metricData.value ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : Number(e.target.value);
+                  setEntryData({
+                    ...entryData,
+                    [section]: {
+                      ...entryData[section],
+                      [m.id]: { ...metricData, value: val }
+                    }
+                  });
+                }}
+              />
+            </div>
+            <div className="w-24 space-y-1">
+              <label className="text-[9px] font-mono text-gray-400 uppercase pl-1">Target</label>
+              <input 
+                type="number"
+                className="w-full bg-gray-100/50 border-none px-4 py-3 rounded-xl outline-none text-xs font-mono"
+                value={metricData.target ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : Number(e.target.value);
+                  setEntryData({
+                    ...entryData,
+                    [section]: {
+                      ...entryData[section],
+                      [m.id]: { ...metricData, target: val }
+                    }
+                  });
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {m.type === 'textarea' && (
+          <textarea 
+            className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none min-h-[100px] text-sm focus:ring-2 ring-accent/20"
+            placeholder="Detailed notes / descriptions..."
+            value={metricData.value || ''}
+            onChange={(e) => {
+              setEntryData({
+                ...entryData,
+                [section]: {
+                  ...entryData[section],
+                  [m.id]: { ...metricData, value: e.target.value }
+                }
+              });
+            }}
+          />
+        )}
+
+        {m.type === 'boolean' && (
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => {
+                setEntryData({
+                  ...entryData,
+                  [section]: {
+                    ...entryData[section],
+                    [m.id]: { ...metricData, value: true }
+                  }
+                });
+              }}
+              className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${metricData.value === true ? 'bg-accent text-accent-foreground shadow-lg shadow-accent/20' : 'bg-gray-50 text-gray-400'}`}
+            >
+              YES
+            </button>
+            <button 
+               onClick={() => {
+                setEntryData({
+                  ...entryData,
+                  [section]: {
+                    ...entryData[section],
+                    [m.id]: { ...metricData, value: false }
+                  }
+                });
+              }}
+              className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${metricData.value === false ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-gray-50 text-gray-400'}`}
+            >
+              NO
+            </button>
+          </div>
+        )}
+
+        {m.type === 'auto' && (
+          <div className="bg-gray-50/50 p-4 rounded-xl border border-dashed border-gray-200">
+            <span className="text-xl font-black text-gray-400">
+              {m.calc?.(Object.fromEntries(Object.entries(entryData[section] || {}).map(([id, d]: [string, any]) => [id, d.value]))) || 0}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const LEADGEN_GROUPS = [
+    { name: 'InMail Outreach', ids: ['L01', 'L02', 'L03', 'L04', 'L05', 'L06'] },
+    { name: 'Connection Request Outreach', ids: ['L07', 'L08', 'L09', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15', 'L16', 'L17', 'L18'] },
+    { name: 'Existing Connections', ids: ['L19', 'L20', 'L21', 'L22'] },
+    { name: 'Pipeline & Conversion', ids: ['L23', 'L24', 'L25', 'L26', 'L27'] },
+    { name: 'Cold Email', ids: ['L28', 'L29', 'L30', 'L31', 'L32', 'L33', 'L34'] },
+    { name: 'Qualitative + Happiness', ids: ['L35', 'L36', 'L37'] },
+  ];
+
+  const CONTENT_GROUPS = [
+    { name: 'Production Pipeline', ids: ['C01', 'C02', 'C03', 'C04', 'C05'] },
+    { name: 'Post Output', ids: ['C06', 'C07', 'C08', 'C09'] },
+    { name: 'Performance', ids: ['C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16'] },
+    { name: 'Engagement Activity', ids: ['C17', 'C18'] },
+    { name: 'Delivery & Reporting', ids: ['C19', 'C20', 'C21', 'C22', 'C23'] },
+    { name: 'Qualitative', ids: ['C24', 'C25'] },
+  ];
+
+  return (
     <div className="space-y-8 max-w-5xl mx-auto">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Select Client</label>
+          <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Target Account</label>
           <select 
-            className="w-full bg-white border border-gray-100 px-6 py-4 rounded-2xl outline-none shadow-sm font-bold text-lg"
-            onChange={(e) => {
-              setSelectedClient(e.target.value);
-              const perf = clients.find(c => c.id === e.target.value)?.weeklyPerformance.find(w => w.weekId === selectedWeek);
-              setEntryData(perf || { contentMetrics: {}, leadGenMetrics: {} });
-            }}
+            className="w-full bg-white border border-gray-100 px-6 py-4 rounded-2xl outline-none shadow-sm font-bold text-lg focus:ring-2 ring-accent/20"
+            value={selectedClient || ''}
+            onChange={(e) => setSelectedClient(e.target.value)}
           >
-            <option value="">— Select Target Account —</option>
+            <option value="">— Select Account —</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
         <div className="space-y-2">
-          <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Select Week</label>
+          <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Reporting Week</label>
           <select 
-            className="w-full bg-white border border-gray-100 px-6 py-4 rounded-2xl outline-none shadow-sm font-bold"
+            className="w-full bg-white border border-gray-100 px-6 py-4 rounded-2xl outline-none shadow-sm font-bold focus:ring-2 ring-accent/20"
             value={selectedWeek}
             onChange={(e) => setSelectedWeek(e.target.value)}
           >
-            {WEEKS.map(w => <option key={w} value={w}>{w}</option>)}
+            {LAST_12_WEEKS.map(w => <option key={w.weekStart} value={w.weekStart}>{w.label}</option>)}
           </select>
         </div>
       </div>
@@ -596,120 +1514,57 @@ const DataEntryView = ({ clients, userProfile }: { clients: Client[], userProfil
         </div>
       ) : (
         <div className="space-y-8">
-          <div className="flex gap-4 border-b border-gray-100">
-            {canSeeContent && <button className="px-6 py-4 border-b-2 border-accent text-sm font-bold">Content Metrics</button>}
-            {canSeeLeadGen && <button className="px-6 py-4 text-sm font-medium text-gray-400">Lead Gen Metrics</button>}
+          <div className="flex gap-4 p-1 bg-gray-100 rounded-2xl w-fit">
+            {canSeeContent && (
+              <button 
+                onClick={() => setActiveDataTab('content')}
+                className={`px-8 py-3 rounded-xl text-sm font-bold transition-all ${activeDataTab === 'content' ? 'bg-white text-black shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                Content
+              </button>
+            )}
+            {canSeeLeadGen && (
+              <button 
+                onClick={() => setActiveDataTab('leadgen')}
+                className={`px-8 py-3 rounded-xl text-sm font-bold transition-all ${activeDataTab === 'leadgen' ? 'bg-white text-black shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                Lead Gen
+              </button>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-            {(canSeeContent ? CONTENT_METRICS_LIST : LEADGEN_METRICS_LIST).map(m => (
-              <div key={m.id} className="space-y-3">
-                <div className="flex justify-between items-start">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">{m.category}</p>
-                    <h4 className="font-bold text-sm">{m.name}</h4>
-                  </div>
-                  {m.type === 'auto' && <Badge variant="outline">Auto</Badge>}
+          <div className="space-y-6">
+            {(activeDataTab === 'content' ? CONTENT_GROUPS : LEADGEN_GROUPS).map(group => {
+              const activeMetricsInGroup = group.ids.filter(id => {
+                const activeList = activeDataTab === 'content' ? clientSettings?.activeContentMetrics : clientSettings?.activeLeadGenMetrics;
+                return !activeList || activeList.includes(id);
+              });
+
+              if (activeMetricsInGroup.length === 0) return null;
+
+              return (
+                <div key={group.name} className="space-y-4">
+                  <button 
+                    onClick={() => toggleSection(group.name)}
+                    className="w-full flex items-center justify-between py-2 border-b border-gray-100 group"
+                  >
+                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 group-hover:text-black transition-colors">{group.name}</h3>
+                    <ChevronRight className={`w-4 h-4 text-gray-300 transition-transform ${expandedSections.includes(group.name) ? 'rotate-90' : ''}`} />
+                  </button>
+                  
+                  {expandedSections.includes(group.name) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {activeMetricsInGroup.map(id => {
+                        const m = (activeDataTab === 'content' ? CONTENT_METRICS_LIST : LEADGEN_METRICS_LIST).find(m => m.id === id);
+                        return m ? renderMetric(m) : null;
+                      })}
+                    </div>
+                  )}
                 </div>
-                
-                {m.type === 'number' && (
-                  <div className="flex gap-4">
-                    <input 
-                      type="number"
-                      placeholder="Actual"
-                      className="flex-1 bg-gray-50 border-none px-4 py-3 rounded-xl outline-none"
-                      value={entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value || ''}
-                      onChange={(e) => {
-                        const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
-                        setEntryData({
-                          ...entryData,
-                          [section]: {
-                            ...entryData[section],
-                            [m.id]: { ...entryData[section]?.[m.id], value: Number(e.target.value) }
-                          }
-                        });
-                      }}
-                    />
-                    <input 
-                      type="number"
-                      placeholder="Target"
-                      className="w-24 bg-gray-100/50 border-none px-4 py-3 rounded-xl outline-none text-xs font-mono"
-                      value={entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.target || ''}
-                      onChange={(e) => {
-                        const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
-                        setEntryData({
-                          ...entryData,
-                          [section]: {
-                            ...entryData[section],
-                            [m.id]: { ...entryData[section]?.[m.id], target: Number(e.target.value) }
-                          }
-                        });
-                      }}
-                    />
-                  </div>
-                )}
-
-                {m.type === 'textarea' && (
-                  <textarea 
-                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none min-h-[100px] text-sm"
-                    placeholder="Detailed notes / descriptions..."
-                    value={entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value || ''}
-                    onChange={(e) => {
-                      const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
-                      setEntryData({
-                        ...entryData,
-                        [section]: {
-                          ...entryData[section],
-                          [m.id]: { ...entryData[section]?.[m.id], value: e.target.value }
-                        }
-                      });
-                    }}
-                  />
-                )}
-
-                {m.type === 'boolean' && (
-                  <div className="flex items-center gap-4">
-                    <button 
-                      onClick={() => {
-                        const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
-                        setEntryData({
-                          ...entryData,
-                          [section]: {
-                            ...entryData[section],
-                            [m.id]: { ...entryData[section]?.[m.id], value: true }
-                          }
-                        });
-                      }}
-                      className={`px-6 py-3 rounded-xl text-xs font-bold transition-all ${entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value === true ? 'bg-accent text-accent-foreground' : 'bg-gray-50 text-gray-400'}`}
-                    >
-                      YES
-                    </button>
-                    <button 
-                       onClick={() => {
-                        const section = canSeeContent ? 'contentMetrics' : 'leadGenMetrics';
-                        setEntryData({
-                          ...entryData,
-                          [section]: {
-                            ...entryData[section],
-                            [m.id]: { ...entryData[section]?.[m.id], value: false }
-                          }
-                        });
-                      }}
-                      className={`px-6 py-3 rounded-xl text-xs font-bold transition-all ${entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value === false ? 'bg-red-500 text-white' : 'bg-gray-50 text-gray-400'}`}
-                    >
-                      NO
-                    </button>
-                  </div>
-                )}
-
-                {m.type === 'auto' && (
-                  <div className="bg-gray-50/50 p-4 rounded-xl border border-dashed border-gray-200">
-                    <span className="text-xl font-black">{m.calc?.(entryData[canSeeContent ? 'contentMetrics' : 'leadGenMetrics'] || {})}</span>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
+
 
           <div className="pt-12 flex gap-4">
             <button 
@@ -733,6 +1588,7 @@ const DataEntryView = ({ clients, userProfile }: { clients: Client[], userProfil
   );
 };
 
+
 // --- Main App Component ---
 
 export default function App() {
@@ -741,13 +1597,16 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'clients' | 'data-entry' | 'monday-mode' | 'actionables' | 'sales' | 'finance' | 'internal' | 'settings' | 'team' | 'accept-invite'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'clients' | 'data-entry' | 'monday-mode' | 'actionables' | 'sales' | 'finance' | 'internal' | 'settings' | 'team' | 'accept-invite' | 'tj-brand'>('dashboard');
+
   const [invites, setInvites] = useState<Invite[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [meetingIndex, setMeetingIndex] = useState(0);
   const [isAddingClient, setIsAddingClient] = useState(false);
+  const [activeConfigClient, setActiveConfigClient] = useState<string | null>(null);
   const [newClientData, setNewClientData] = useState({ name: '', contentManagerUid: '', leadGenManagerUid: '' });
+
 
   // Router for Accept Invite
   useEffect(() => {
@@ -765,28 +1624,35 @@ export default function App() {
     if (!userProfile) return [];
     
     const isAdmin = userProfile.role === 'admin';
+    const isTJ = userProfile.email === 'tejas@myntmore.com' || isAdmin;
     
     const baseItems = [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'actionables', label: 'Actionables', icon: Layers },
-      { id: 'data-entry', label: 'Data Entry', icon:TrendingUp },
+      { id: 'data-entry', label: 'Data Entry', icon: TrendingUp },
     ];
 
+    const items = [...baseItems];
+
+    if (isTJ) {
+      items.push({ id: 'tj-brand', label: 'TJ Personal Brand', icon: Users });
+    }
+
     if (isAdmin) {
-      return [
-        ...baseItems,
+      items.push(
         { id: 'clients', label: 'Clients', icon: Users },
         { id: 'monday-mode', label: 'Monday Mode', icon: Calendar },
-        { id: 'sales', label: 'Sales & Pipeline', icon: BarChart3 },
+        { id: 'sales', label: 'Sales & Outreach', icon: BarChart3 },
         { id: 'finance', label: 'Finance', icon: ShieldCheck },
         { id: 'internal', label: 'Internal Systems', icon: Database },
         { id: 'team', label: 'Team Members', icon: ShieldCheck },
         { id: 'settings', label: 'Settings', icon: Settings },
-      ];
+      );
     }
 
-    return baseItems;
+    return items;
   }, [userProfile]);
+
 
   // Auth Effect
   useEffect(() => {
@@ -1244,9 +2110,9 @@ export default function App() {
                   <div className="h-[300px] w-full">
                     {clients.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={WEEKS.map(week => {
+                        <AreaChart data={LAST_12_WEEKS.map(week => {
                           const achievements = clients.map(c => {
-                            const data = c.weeklyPerformance.find(w => (w as any).weekId === week);
+                            const data = c.weeklyPerformance.find(w => w.weekStart === week.weekStart);
                             if (!data) return 0;
                             
                             let totalTarget = 0;
@@ -1266,7 +2132,7 @@ export default function App() {
                             return totalTarget > 0 ? (totalActual / totalTarget) : 0;
                           });
                           return {
-                            name: week,
+                            name: week.label,
                             achievement: (achievements.reduce((a, b) => a + b, 0) / (clients.length || 1)) * 100
                           };
                         })}>
@@ -1292,6 +2158,7 @@ export default function App() {
                       </div>
                     )}
                   </div>
+
                 </Card>
 
                 <div className="space-y-6">
@@ -1370,12 +2237,23 @@ export default function App() {
                       <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Achievement</p>
                       <p className="text-lg font-black">{(calculateAchievement(client) * 100).toFixed(0)}%</p>
                     </div>
-                    <button className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 bg-white border border-gray-100 rounded-lg shadow-sm">
+                    <button 
+                      onClick={() => setActiveConfigClient(client.id)}
+                      className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 bg-white border border-gray-100 rounded-lg shadow-sm hover:border-accent transition-colors"
+                    >
                       Configure
                     </button>
                   </div>
                 </Card>
               ))}
+              
+              {activeConfigClient && clients.find(c => c.id === activeConfigClient) && (
+                <ClientSettingsView 
+                  client={clients.find(c => c.id === activeConfigClient)!} 
+                  onClose={() => setActiveConfigClient(null)} 
+                />
+              )}
+
               
               <button 
                 onClick={() => setIsAddingClient(true)}
@@ -1439,6 +2317,8 @@ export default function App() {
 
           {activeTab === 'team' && userProfile?.role === 'admin' && <TeamView allUsers={allUsers} invites={invites} userId={user?.uid} />}
           {activeTab === 'data-entry' && <DataEntryView clients={clients} userProfile={userProfile} />}
+          {activeTab === 'tj-brand' && (userProfile?.role === 'admin' || userProfile?.email === 'tejas@myntmore.com') && <TJPersonalBrandView userProfile={userProfile} />}
+          {activeTab === 'sales' && userProfile?.role === 'admin' && <SalesOutreachView userProfile={userProfile} />}
 
           {activeTab === 'actionables' && (
             <div className="py-20 text-center space-y-4">
@@ -1480,8 +2360,9 @@ export default function App() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
+                      className="space-y-6"
                     >
-                      <Card className="p-10 border-2 border-accent min-h-[500px] flex flex-col">
+                      <Card className="p-10 border-2 border-accent min-h-[400px] flex flex-col">
                         <div className="flex justify-between items-start mb-12">
                           <div>
                             <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-1">Focus Account</p>
@@ -1506,21 +2387,42 @@ export default function App() {
                             <p className="text-sm text-gray-400 font-medium italic">"{clients[meetingIndex].name} is maintaining stable trajectory."</p>
                           </div>
                           
-                          <div className="md:col-span-2 grid grid-cols-2 gap-6">
-                             <div className="p-6 bg-gray-50 rounded-2xl">
-                               <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-2">Content Pulse</p>
-                               <div className="text-2xl font-bold">On Track</div>
-                             </div>
-                             <div className="p-6 bg-gray-50 rounded-2xl">
-                               <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest mb-2">Lead Gen Health</p>
-                               <div className="text-2xl font-bold text-accent">Optimization Req.</div>
-                             </div>
+                          <div className="md:col-span-2 grid grid-cols-2 gap-6 overflow-y-auto max-h-[500px] pr-2">
+                             {(() => {
+                               const last = clients[meetingIndex].weeklyPerformance[clients[meetingIndex].weeklyPerformance.length - 1];
+                               if (!last) return <p className="text-gray-400 italic">No recent data</p>;
+                               
+                               const allMetrics = [
+                                 ...Object.entries(last.contentMetrics || {}).map(([id, m]) => ({ id, ...m, name: CONTENT_METRICS_LIST.find(cm => cm.id === id)?.name })),
+                                 ...Object.entries(last.leadGenMetrics || {}).map(([id, m]) => ({ id, ...m, name: LEADGEN_METRICS_LIST.find(lm => lm.id === id)?.name }))
+                               ].filter(m => typeof m.value === 'number');
+
+                               return (
+                                 <>
+                                   {allMetrics.map(m => (
+                                     <div key={m.id} className="p-6 bg-gray-50 rounded-2xl space-y-2">
+                                       <div className="flex justify-between items-start">
+                                         <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">{m.name}</p>
+                                         <Badge variant="gold">BEST: {m.value}</Badge>
+                                       </div>
+                                       <div className="text-3xl font-black">{m.value}</div>
+                                       {m.target && (
+                                         <div className="w-full bg-gray-200 h-1 rounded-full overflow-hidden">
+                                            <div className="h-full bg-accent" style={{ width: `${Math.min((m.value / m.target) * 100, 100)}%` }} />
+                                         </div>
+                                       )}
+                                     </div>
+                                   ))}
+                                 </>
+                               );
+                             })()}
                           </div>
                         </div>
                       </Card>
                     </motion.div>
                   </AnimatePresence>
                 </div>
+
               ) : (
                 <div className="py-20 text-center space-y-4">
                   <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mx-auto text-gray-300">
@@ -1534,14 +2436,25 @@ export default function App() {
           )}
 
 
-          {activeTab === 'sales' && <div className="p-10 font-mono text-xs uppercase tracking-widest text-gray-400">Sales & Pipeline Authority Dashboard</div>}
-          {activeTab === 'finance' && <div className="p-10 font-mono text-xs uppercase tracking-widest text-gray-400">Finance & ARR Tracking</div>}
-          {activeTab === 'internal' && <div className="p-10 font-mono text-xs uppercase tracking-widest text-gray-400">Internal Agency Systems Configuration</div>}
+
+          {activeTab === 'finance' && <div className="p-10 font-mono text-xs uppercase tracking-widest text-gray-400">Finance & ARR Tracking Authority Dashboard — Coming in v1.4</div>}
+          {activeTab === 'internal' && <div className="p-10 font-mono text-xs uppercase tracking-widest text-gray-400">Internal Agency Systems Configuration Authority Dashboard — Coming in v1.5</div>}
+
 
           {activeTab === 'settings' && (
             <div className="max-w-2xl space-y-10">
               <div className="space-y-4">
-                <h3 className="font-bold text-xl tracking-tight">System Configuration</h3>
+                <div className="flex justify-between items-center">
+                  <h3 className="font-bold text-xl tracking-tight">System Configuration</h3>
+                  <button 
+                    onClick={() => exportAllData(clients)}
+                    className="px-6 py-2 bg-black text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg"
+                  >
+                    <Database className="w-4 h-4" />
+                    Export All Data
+                  </button>
+                </div>
+
                 <Card className="divide-y divide-gray-50">
                   <div className="p-6 flex items-center justify-between">
                     <div>
