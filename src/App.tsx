@@ -41,6 +41,7 @@ import {
   onAuthStateChanged, 
   signOut,
   createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   User as FirebaseUser
 } from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType } from './lib/firebase';
@@ -1693,6 +1694,10 @@ export default function App() {
   const [activeConfigClient, setActiveConfigClient] = useState<string | null>(null);
   const [newClientData, setNewClientData] = useState({ name: '', contentManagerUid: '', leadGenManagerUid: '' });
 
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
 
   // Router for Accept Invite
   useEffect(() => {
@@ -1909,11 +1914,25 @@ export default function App() {
     }
   };
 
-  const handleLogin = async () => {
+  const handleGoogleLogin = async () => {
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
     } catch (error) {
-      toast.error('Login failed');
+      toast.error('Google Login failed');
+    }
+  };
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    const loadId = toast.loading('Authenticating...');
+    try {
+      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      toast.success('Access Granted', { id: loadId });
+    } catch (error: any) {
+      toast.error(error.message || 'Authentication failed', { id: loadId });
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -2061,18 +2080,42 @@ export default function App() {
             <p className="text-black/40 text-xs font-mono uppercase tracking-widest">Internal Agency Operations</p>
           </div>
           
-          <Card className="bg-white border-gray-100 p-8 shadow-xl">
+          <Card className="bg-white border-gray-100 p-8 shadow-xl text-left">
+            <form onSubmit={handleEmailLogin} className="space-y-4 mb-6">
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono text-gray-400 uppercase tracking-widest pl-1">Email Authority</label>
+                <input required type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono text-gray-400 uppercase tracking-widest pl-1">Master Password</label>
+                <input required type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" />
+              </div>
+              <button type="submit" disabled={isLoggingIn} className="w-full bg-black text-white font-bold py-3 rounded-xl hover:opacity-90 transition-all shadow-lg text-sm">
+                 Access Terminal
+              </button>
+            </form>
+
+            <div className="relative mb-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-100"></div>
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-white px-2 text-gray-400 font-mono">OR</span>
+              </div>
+            </div>
+
             <button 
-              onClick={handleLogin}
-              className="w-full bg-accent text-accent-foreground font-bold py-4 rounded-xl flex items-center justify-center gap-3 hover:opacity-90 transition-all shadow-lg shadow-accent/20"
+              type="button"
+              onClick={handleGoogleLogin}
+              className="w-full bg-accent text-accent-foreground font-bold py-3 rounded-xl flex items-center justify-center gap-3 hover:opacity-90 transition-all shadow-sm text-sm"
             >
-              <ShieldCheck className="w-5 h-5" />
-              Secure Login
+              <ShieldCheck className="w-4 h-4" />
+              Admin Override (Google)
             </button>
-            <p className="mt-6 text-[10px] text-black/30 font-mono leading-relaxed">
-              AUTHORISED PERSONNEL ONLY. ACCESS LOGS ARE PERMANENTLY RECORDED.
-            </p>
           </Card>
+          <p className="mt-6 text-[10px] text-black/30 font-mono leading-relaxed">
+            AUTHORISED PERSONNEL ONLY. ACCESS LOGS ARE PERMANENTLY RECORDED.
+          </p>
         </div>
       </div>
     );
