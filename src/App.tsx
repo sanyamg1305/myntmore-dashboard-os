@@ -32,7 +32,8 @@ import {
   getDocs,
   serverTimestamp,
   writeBatch,
-  getDoc
+  getDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { 
   signInWithPopup, 
@@ -58,6 +59,7 @@ import {
   BarChart,
   Bar
 } from 'recharts';
+import * as XLSX from 'xlsx';
 
 // --- Types ---
 
@@ -164,7 +166,55 @@ const CONTENT_METRICS_LIST = [
   { id: 'C25', name: 'What\'s Not Working (Content)', type: 'textarea', category: 'Qualitative' },
 ];
 
-  { id: 'L37', name: 'Happiness Index', type: 'slider', category: 'Qualitative' },
+const LEADGEN_METRICS_LIST = [
+  // InMail Outreach
+  { id: 'L01', name: 'InMail ICP Targeted', type: 'textarea', category: 'InMail Outreach' },
+  { id: 'L02', name: 'InMails Sent', type: 'number', category: 'InMail Outreach' },
+  { id: 'L03', name: 'InMails Accepted', type: 'number', category: 'InMail Outreach' },
+  { id: 'L04', name: 'InMails Declined', type: 'number', category: 'InMail Outreach' },
+  { id: 'L05', name: 'InMails Answered', type: 'number', category: 'InMail Outreach' },
+  { id: 'L06', name: 'InMail Meetings Booked', type: 'number', category: 'InMail Outreach' },
+
+  // Connection Request Outreach
+  { id: 'L07', name: 'Connection ICP Targeted', type: 'textarea', category: 'Connection Request Outreach' },
+  { id: 'L08', name: 'Connection Requests Sent', type: 'number', category: 'Connection Request Outreach' },
+  { id: 'L09', name: 'Connection Requests Accepted', type: 'number', category: 'Connection Request Outreach' },
+  { id: 'L10', name: 'Acceptance Rate', type: 'auto', category: 'Connection Request Outreach', calc: (vals: any) => (Number(vals.L08) > 0 ? (Number(vals.L09) / Number(vals.L08)) * 100 : 0).toFixed(1) + '%' },
+  { id: 'L11', name: 'Messages Sent to New Connections', type: 'number', category: 'Connection Request Outreach' },
+  { id: 'L12', name: 'New Connections Replied', type: 'number', category: 'Connection Request Outreach' },
+  { id: 'L13', name: 'Reply Rate (New Connections)', type: 'auto', category: 'Connection Request Outreach', calc: (vals: any) => (Number(vals.L11) > 0 ? (Number(vals.L12) / Number(vals.L11)) * 100 : 0).toFixed(1) + '%' },
+  { id: 'L14', name: 'Hot Leads (New Connections)', type: 'number', category: 'Connection Request Outreach' },
+  { id: 'L15', name: 'Negative Replies (New)', type: 'number', category: 'Connection Request Outreach' },
+  { id: 'L16', name: 'Generic Responses (New)', type: 'number', category: 'Connection Request Outreach' },
+  { id: 'L17', name: 'Meetings Booked (New)', type: 'number', category: 'Connection Request Outreach' },
+  { id: 'L18', name: 'Conversion Rate (Sent to Meeting)', type: 'auto', category: 'Connection Request Outreach', calc: (vals: any) => (Number(vals.L08) > 0 ? (Number(vals.L17) / Number(vals.L08)) * 100 : 0).toFixed(1) + '%' },
+
+  // Existing Connections
+  { id: 'L19', name: 'Messages Sent to Existing Connections', type: 'number', category: 'Existing Connections' },
+  { id: 'L20', name: 'Existing Connections Replied', type: 'number', category: 'Existing Connections' },
+  { id: 'L21', name: 'Reply Rate (Existing)', type: 'auto', category: 'Existing Connections', calc: (vals: any) => (Number(vals.L19) > 0 ? (Number(vals.L20) / Number(vals.L19)) * 100 : 0).toFixed(1) + '%' },
+  { id: 'L22', name: 'Meetings Booked (Existing)', type: 'number', category: 'Existing Connections' },
+
+  // Pipeline & Conversion
+  { id: 'L23', name: 'Total Meetings Completed', type: 'number', category: 'Pipeline & Conversion' },
+  { id: 'L24', name: 'Total No Shows', type: 'number', category: 'Pipeline & Conversion' },
+  { id: 'L25', name: 'Proposals Sent', type: 'number', category: 'Pipeline & Conversion' },
+  { id: 'L26', name: 'Follow Ups Done', type: 'number', category: 'Pipeline & Conversion' },
+  { id: 'L27', name: 'Clients Converted', type: 'number', category: 'Pipeline & Conversion' },
+
+  // Cold Email
+  { id: 'L28', name: 'Emails Sent', type: 'number', category: 'Cold Email' },
+  { id: 'L29', name: 'Emails Delivered', type: 'number', category: 'Cold Email' },
+  { id: 'L30', name: 'Emails Opened', type: 'number', category: 'Cold Email' },
+  { id: 'L31', name: 'Open Rate', type: 'auto', category: 'Cold Email', calc: (vals: any) => (Number(vals.L29) > 0 ? (Number(vals.L30) / Number(vals.L29)) * 100 : 0).toFixed(1) + '%' },
+  { id: 'L32', name: 'Replies Received', type: 'number', category: 'Cold Email' },
+  { id: 'L33', name: 'Reply Rate', type: 'auto', category: 'Cold Email', calc: (vals: any) => (Number(vals.L29) > 0 ? (Number(vals.L32) / Number(vals.L29)) * 100 : 0).toFixed(1) + '%' },
+  { id: 'L34', name: 'Meetings Booked via Email', type: 'number', category: 'Cold Email' },
+
+  // Qualitative + Happiness
+  { id: 'L35', name: 'What\'s Working (Lead Gen)', type: 'textarea', category: 'Qualitative + Happiness' },
+  { id: 'L36', name: 'What\'s Not Working (Lead Gen)', type: 'textarea', category: 'Qualitative + Happiness' },
+  { id: 'L37', name: 'Happiness Index', type: 'number', category: 'Qualitative + Happiness' },
 ];
 
 const TJ_METRICS = {
@@ -313,12 +363,18 @@ const getWeekRange = (weeksAgo = 0) => {
   sunday.setDate(monday.getDate() + 6);
   sunday.setHours(23, 59, 59, 999);
   
+  const d = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+
   const fmt = (d: Date) => d.toLocaleDateString('en-GB', { 
     day: 'numeric', month: 'short', year: 'numeric' 
   });
   
   return {
-    label: `${fmt(monday)} – ${fmt(sunday)}`,
+    label: `Week ${weekNo} (${fmt(monday)} – ${fmt(sunday)})`,
     weekStart: monday.toISOString().split('T')[0], // used as Firestore document ID
     weekEnd: sunday.toISOString().split('T')[0]
   };
@@ -614,6 +670,30 @@ const TeamView = ({ allUsers, invites, userId }: { allUsers: UserProfile[], invi
     }
   };
 
+  const handleDeleteUser = async (uid: string) => {
+    if (window.confirm('Are you sure you want to permanently delete this member?')) {
+      const loadId = toast.loading('Deleting member...');
+      try {
+        await deleteDoc(doc(db, 'users', uid));
+        toast.success('Member deleted', { id: loadId });
+      } catch (error) {
+        toast.error('Failed to delete member', { id: loadId });
+      }
+    }
+  };
+
+  const handleDeleteInvite = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this invite?')) {
+      const loadId = toast.loading('Deleting invite...');
+      try {
+        await deleteDoc(doc(db, 'invites', id));
+        toast.success('Invite deleted', { id: loadId });
+      } catch (error) {
+        toast.error('Failed to delete invite', { id: loadId });
+      }
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
@@ -655,8 +735,11 @@ const TeamView = ({ allUsers, invites, userId }: { allUsers: UserProfile[], invi
                 <td className="px-6 py-4">
                   <Badge variant={u.inviteStatus === 'active' ? 'accent' : 'outline'}>{u.inviteStatus}</Badge>
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 flex items-center gap-3">
                   <button className="text-gray-400 hover:text-black transition-colors">Edit</button>
+                  {u.uid !== userId && (
+                    <button onClick={() => handleDeleteUser(u.uid)} className="text-gray-400 hover:text-red-500 transition-colors">Delete</button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -671,8 +754,9 @@ const TeamView = ({ allUsers, invites, userId }: { allUsers: UserProfile[], invi
                 <td className="px-6 py-4">
                   <Badge variant="accent">Pending</Badge>
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 flex items-center gap-3">
                   <button className="text-gray-400 hover:text-black transition-colors">Resend</button>
+                  <button onClick={() => handleDeleteInvite(inv.id)} className="text-gray-400 hover:text-red-500 transition-colors">Delete</button>
                 </td>
               </tr>
             ))}
@@ -1115,6 +1199,8 @@ const SalesOutreachView = ({ userProfile }: { userProfile: UserProfile | null })
       )}
     </div>
   );
+};
+
 const ClientSettingsView = ({ client, onClose }: { client: Client, onClose: () => void }) => {
   const [settings, setSettings] = useState<ClientSettings>({
     activeContentMetrics: CONTENT_METRICS_LIST.map(m => m.id),
@@ -1869,7 +1955,8 @@ export default function App() {
         }
 
         const batch = writeBatch(db);
-        WEEKS.forEach((weekId, idx) => {
+        LAST_12_WEEKS.forEach((week, idx) => {
+          const weekId = week.weekStart;
           const weekRef = doc(db, `weeklyData/${clientRef.id}/2026`, weekId);
           
           const contentMetrics: any = {};
@@ -1946,6 +2033,10 @@ export default function App() {
 
   // --- Render Sections ---
 
+  if (activeTab === 'accept-invite') {
+    return <AcceptInviteView onAcceptSuccess={() => setActiveTab('dashboard')} />;
+  }
+
   if (!isAuthReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -1987,9 +2078,6 @@ export default function App() {
     );
   }
 
-  if (activeTab === 'accept-invite') {
-    return <AcceptInviteView onAcceptSuccess={() => setActiveTab('dashboard')} />;
-  }
 
   return (
     <div className="min-h-screen flex">
@@ -2375,48 +2463,121 @@ export default function App() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 flex-1">
-                          <div className="space-y-4">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-accent" />
-                              <span className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Growth Velocity</span>
-                            </div>
-                            <div className="text-6xl font-black tracking-tighter">
-                              {(calculateAchievement(clients[meetingIndex]) * 100).toFixed(0)}%
-                            </div>
-                            <p className="text-sm text-gray-400 font-medium italic">"{clients[meetingIndex].name} is maintaining stable trajectory."</p>
-                          </div>
-                          
-                          <div className="md:col-span-2 grid grid-cols-2 gap-6 overflow-y-auto max-h-[500px] pr-2">
-                             {(() => {
-                               const last = clients[meetingIndex].weeklyPerformance[clients[meetingIndex].weeklyPerformance.length - 1];
-                               if (!last) return <p className="text-gray-400 italic">No recent data</p>;
-                               
-                               const allMetrics = [
-                                 ...Object.entries(last.contentMetrics || {}).map(([id, m]) => ({ id, ...m, name: CONTENT_METRICS_LIST.find(cm => cm.id === id)?.name })),
-                                 ...Object.entries(last.leadGenMetrics || {}).map(([id, m]) => ({ id, ...m, name: LEADGEN_METRICS_LIST.find(lm => lm.id === id)?.name }))
-                               ].filter(m => typeof m.value === 'number');
+                        <div className="flex flex-col gap-10 flex-1 overflow-y-auto pr-2 mt-8">
+                          {(() => {
+                            const performance = clients[meetingIndex].weeklyPerformance;
+                            const last = performance[performance.length - 1];
+                            if (!last) return <p className="text-gray-400 italic">No recent data</p>;
+                            
+                            const contentMetrics = Object.entries(last.contentMetrics || {}).map(([id, m]) => ({ id, ...m, name: CONTENT_METRICS_LIST.find(cm => cm.id === id)?.name }));
+                            const leadGenMetrics = Object.entries(last.leadGenMetrics || {}).map(([id, m]) => ({ id, ...m, name: LEADGEN_METRICS_LIST.find(lm => lm.id === id)?.name }));
 
-                               return (
-                                 <>
-                                   {allMetrics.map(m => (
-                                     <div key={m.id} className="p-6 bg-gray-50 rounded-2xl space-y-2">
-                                       <div className="flex justify-between items-start">
-                                         <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">{m.name}</p>
-                                         <Badge variant="gold">BEST: {m.value}</Badge>
-                                       </div>
-                                       <div className="text-3xl font-black">{m.value}</div>
-                                       {m.target && (
-                                         <div className="w-full bg-gray-200 h-1 rounded-full overflow-hidden">
-                                            <div className="h-full bg-accent" style={{ width: `${Math.min((m.value / m.target) * 100, 100)}%` }} />
-                                         </div>
-                                       )}
+                            const renderMetricCard = (m: any, type: 'content' | 'leadgen') => {
+                              if (typeof m.value !== 'number') {
+                                if (typeof m.value === 'string' && m.value.trim() !== '') {
+                                   return (
+                                     <div key={m.id} className="p-6 bg-gray-50/50 border border-gray-100 rounded-2xl space-y-3 col-span-2">
+                                       <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">{m.name}</p>
+                                       <p className="text-sm font-medium italic text-gray-700">"{m.value}"</p>
                                      </div>
-                                   ))}
-                                 </>
-                               );
-                             })()}
-                          </div>
+                                   );
+                                } else if (typeof m.value === 'boolean') {
+                                   return (
+                                     <div key={m.id} className="p-6 bg-gray-50/50 border border-gray-100 rounded-2xl space-y-3 flex items-center justify-between col-span-1">
+                                       <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">{m.name}</p>
+                                       <Badge variant={m.value ? 'accent' : 'outline'}>{m.value ? 'YES' : 'NO'}</Badge>
+                                     </div>
+                                   );
+                                }
+                                return null;
+                              }
+
+                              const history = performance.map(w => ({
+                                name: w.weekOf,
+                                val: Number(w[type === 'content' ? 'contentMetrics' : 'leadGenMetrics']?.[m.id]?.value || 0)
+                              }));
+
+                              return (
+                                <div key={m.id} className="p-6 bg-gray-50 rounded-2xl space-y-4">
+                                  <div className="flex justify-between items-start">
+                                    <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">{m.name}</p>
+                                    <Badge variant="gold">BEST: {m.value}</Badge>
+                                  </div>
+                                  <div className="text-3xl font-black">{m.value}</div>
+                                  {m.target && (
+                                    <div className="w-full bg-gray-200 h-1 rounded-full overflow-hidden mb-4">
+                                       <div className="h-full bg-accent" style={{ width: `${Math.min((Number(m.value) / Number(m.target)) * 100, 100)}%` }} />
+                                    </div>
+                                  )}
+                                  
+                                  {history.length > 1 && (
+                                    <div className="h-16 w-full mt-4">
+                                      <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={history}>
+                                          <defs>
+                                            <linearGradient id={`grad-${m.id}`} x1="0" y1="0" x2="0" y2="1">
+                                              <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
+                                              <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                                            </linearGradient>
+                                          </defs>
+                                          <Area type="monotone" dataKey="val" stroke="#10B981" fillOpacity={1} fill={`url(#grad-${m.id})`} />
+                                        </AreaChart>
+                                      </ResponsiveContainer>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            };
+
+                            return (
+                              <div className="flex flex-col gap-10">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                  <div className="space-y-4 p-8 bg-gray-50 rounded-3xl">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-2 h-2 rounded-full bg-accent" />
+                                      <span className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Growth Velocity</span>
+                                    </div>
+                                    <div className="text-6xl font-black tracking-tighter">
+                                      {(calculateAchievement(clients[meetingIndex]) * 100).toFixed(0)}%
+                                    </div>
+                                    <p className="text-sm text-gray-400 font-medium italic">Current trajectory based on sprint targets.</p>
+                                  </div>
+                                  <div className="space-y-4 p-8 bg-gray-50 rounded-3xl">
+                                    <span className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Content Pulse</span>
+                                    <div className="text-4xl font-bold text-accent">{contentMetrics.filter(m => typeof m.value === 'number' && m.target && m.value >= m.target).length} <span className="text-gray-400 text-lg">/ {contentMetrics.filter(m => typeof m.value === 'number' && m.target).length}</span></div>
+                                    <p className="text-xs text-gray-400">KPIs On Track</p>
+                                  </div>
+                                  <div className="space-y-4 p-8 bg-gray-50 rounded-3xl">
+                                    <span className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Outreach Health</span>
+                                    <div className="text-4xl font-bold text-black">{leadGenMetrics.filter(m => typeof m.value === 'number' && m.target && m.value >= m.target).length} <span className="text-gray-400 text-lg">/ {leadGenMetrics.filter(m => typeof m.value === 'number' && m.target).length}</span></div>
+                                    <p className="text-xs text-gray-400">KPIs On Track</p>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                  <div className="space-y-6">
+                                     <h3 className="text-lg font-bold border-b pb-4 border-gray-100 flex items-center gap-2">
+                                       <div className="w-2 h-2 rounded-full bg-accent" />
+                                       Content Intelligence
+                                     </h3>
+                                     <div className="grid grid-cols-2 gap-4">
+                                       {contentMetrics.map(m => renderMetricCard(m, 'content'))}
+                                     </div>
+                                  </div>
+                                  
+                                  <div className="space-y-6">
+                                     <h3 className="text-lg font-bold border-b pb-4 border-gray-100 flex items-center gap-2">
+                                       <div className="w-2 h-2 rounded-full bg-black" />
+                                       Pipeline & Outreach
+                                     </h3>
+                                     <div className="grid grid-cols-2 gap-4">
+                                       {leadGenMetrics.map(m => renderMetricCard(m, 'leadgen'))}
+                                     </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </Card>
                     </motion.div>
