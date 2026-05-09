@@ -689,6 +689,18 @@ const TeamView = ({ allUsers, invites, userId, clients }: { allUsers: UserProfil
         })
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = `Server error (${response.status})`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorMessage;
+        } catch (e) {
+          errorMessage += `: ${errorText || 'Empty response'}`;
+        }
+        throw new Error(errorMessage);
+      }
+
       const result = await response.json();
       if (result.error) throw new Error(result.error);
 
