@@ -23,20 +23,6 @@ service cloud.firestore {
       );
     }
 
-    function isContentManagerFor(clientId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             getUserData().assignedClients.hasAny([{ "clientId": clientId, "role": "contentManager" }]);
-    }
-
-    function isLeadGenManagerFor(clientId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             getUserData().assignedClients.hasAny([{ "clientId": clientId, "role": "leadGenManager" }]);
-    }
-
-    function isAssignedToClient(clientId) {
-      return isContentManagerFor(clientId) || isLeadGenManagerFor(clientId);
-    }
-
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -50,7 +36,7 @@ service cloud.firestore {
 
     // Users collection
     match /users/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow read: if isSignedIn();
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
         request.auth.uid == uid && 
@@ -66,21 +52,20 @@ service cloud.firestore {
 
     // Clients
     match /clients/{clientId} {
-      allow read: if isSignedIn() && (isAdmin() || isAssignedToClient(clientId));
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Client Settings
+    match /clientSettings/{clientId} {
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
     // Weekly Data — content and lead gen are separate sub-fields
     match /weeklyData/{clientId}/{year}/{weekNumber} {
-      allow read: if isSignedIn() && (isAdmin() || isAssignedToClient(clientId));
-      
-      allow create: if isSignedIn() && (isAdmin() || isAssignedToClient(clientId));
-
-      allow update: if isSignedIn() && (
-        isAdmin() || 
-        (isContentManagerFor(clientId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['contentMetrics', 'lastUpdatedContent', 'submittedAtContent'])) ||
-        (isLeadGenManagerFor(clientId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leadGenMetrics', 'lastUpdatedLeadGen', 'submittedAtLeadGen']))
-      );
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
     }
 
     // Company-level data

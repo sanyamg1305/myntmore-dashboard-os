@@ -1245,30 +1245,6 @@ const ClientSettingsView = ({ client, onClose, allUsers }: { client: Client, onC
           leadGenManagerUid: managers.leadGenManagerUid,
           leadGenManagerName: leadMan?.name || 'Unknown',
         });
-
-        // Update user profiles (Simplified: in a real app this might be handled by a cloud function or a more robust sync)
-        const syncUser = async (uid: string, role: 'contentManager' | 'leadGenManager', add: boolean) => {
-          if (!uid) return;
-          const uRef = doc(db, 'users', uid);
-          const uDoc = await getDoc(uRef);
-          if (uDoc.exists()) {
-            const assigned = uDoc.data().assignedClients || [];
-            const updated = add 
-              ? (assigned.find((a: any) => a.clientId === client.id && a.role === role) ? assigned : [...assigned, { clientId: client.id, role }])
-              : assigned.filter((a: any) => !(a.clientId === client.id && a.role === role));
-            await updateDoc(uRef, { assignedClients: updated });
-          }
-        };
-
-        // Remove old managers if changed
-        if (managers.contentManagerUid !== client.contentManagerUid) {
-          await syncUser(client.contentManagerUid, 'contentManager', false);
-          await syncUser(managers.contentManagerUid, 'contentManager', true);
-        }
-        if (managers.leadGenManagerUid !== client.leadGenManagerUid) {
-          await syncUser(client.leadGenManagerUid, 'leadGenManager', false);
-          await syncUser(managers.leadGenManagerUid, 'leadGenManager', true);
-        }
       }
 
       toast.success('Configuration committed', { id: loadId });
@@ -1434,10 +1410,9 @@ const DataEntryView = ({ clients, userProfile }: { clients: Client[], userProfil
     setHighScores(scores);
   };
 
-  const userRoleInClient = userProfile?.assignedClients?.find(a => a.clientId === selectedClient)?.role;
   const isAdmin = userProfile?.role === 'admin';
-  const canSeeContent = isAdmin || userRoleInClient === 'contentManager' || userProfile?.department === 'both' || userProfile?.department === 'content';
-  const canSeeLeadGen = isAdmin || userRoleInClient === 'leadGenManager' || userProfile?.department === 'both' || userProfile?.department === 'leadgen';
+  const canSeeContent = true; // All team members can see all fields
+  const canSeeLeadGen = true;
 
   const handleSave = async (submit = false) => {
     if (!selectedClient) return;
@@ -1895,12 +1870,7 @@ export default function App() {
         };
       });
 
-      // Member access control: Only their assigned clients
-      if (userProfile.role !== 'admin') {
-        const assignedIds = (userProfile.assignedClients || []).map(c => c.clientId);
-        clientsData = clientsData.filter(c => assignedIds.includes(c.id));
-      }
-
+      // All members see all clients
       setClients(prev => {
         return clientsData.map(newClient => {
           const existing = prev.find(p => p.id === newClient.id);
@@ -1960,23 +1930,6 @@ export default function App() {
         createdAt: serverTimestamp(),
         createdBy: user?.uid
       });
-
-      // Update managers profiles
-      const updateProfile = async (uid: string, role: any) => {
-        const uRef = doc(db, 'users', uid);
-        const uDoc = await getDoc(uRef);
-        if (uDoc.exists()) {
-          const assigned = uDoc.data().assignedClients || [];
-          await setDoc(uRef, {
-            assignedClients: [...assigned, { clientId: clientRef.id, role }]
-          }, { merge: true });
-        }
-      };
-
-      await updateProfile(newClientData.contentManagerUid, 'contentManager');
-      if (newClientData.contentManagerUid !== newClientData.leadGenManagerUid) {
-        await updateProfile(newClientData.leadGenManagerUid, 'leadGenManager');
-      }
 
       toast.success('Client scope established', { id: loadId });
       setIsAddingClient(false);
