@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx server.ts",
     "build": "tsc && vite build",
     "lint": "tsc --noEmit",
     "preview": "vite preview"
@@ -13,7 +13,9 @@
     "@tailwindcss/vite": "^4.2.4",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "express": "^5.2.1",
     "firebase": "^11.0.2",
+    "firebase-admin": "^13.9.0",
     "lucide-react": "^0.454.0",
     "motion": "^11.11.17",
     "react": "^18.3.1",
@@ -21,6 +23,7 @@
     "recharts": "^2.13.3",
     "sonner": "^1.7.0",
     "tailwind-merge": "^2.5.4",
+    "tsx": "^4.21.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

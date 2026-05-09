@@ -100,6 +100,8 @@ interface Client {
   weeklyPerformance: WeeklyPerformance[];
 }
 
+type UserRole = 'admin' | 'member' | 'client';
+
 interface UserProfile {
   uid: string;
   email: string;
@@ -653,28 +655,49 @@ const AcceptInviteView = ({ onAcceptSuccess }: { onAcceptSuccess: () => void }) 
   );
 };
 
-const TeamView = ({ allUsers, invites, userId }: { allUsers: UserProfile[], invites: Invite[], userId?: string }) => {
-  const [isInviting, setIsInviting] = useState(false);
-  const [inviteData, setInviteData] = useState({ name: '', email: '', department: 'content' as any });
+const TeamView = ({ allUsers, invites, userId, clients }: { allUsers: UserProfile[], invites: Invite[], userId?: string, clients: Client[] }) => {
+  const [isCreating, setIsCreating] = useState(false);
+  const [userData, setUserData] = useState({ 
+    name: '', 
+    email: '', 
+    password: '',
+    role: 'member' as UserRole,
+    department: 'content' as 'content' | 'leadgen' | 'both',
+    assignedClients: [] as string[]
+  });
 
-  const handleInvite = async (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    const loadId = toast.loading('Sending invitation...');
+    const loadId = toast.loading('Creating system account...');
     try {
-      const token = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
-      await addDoc(collection(db, 'invites'), {
-        ...inviteData,
-        role: 'member',
-        invitedBy: userId,
-        createdAt: serverTimestamp(),
-        status: 'pending',
-        token
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Not authenticated');
+
+      const response = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          email: userData.email,
+          password: userData.password,
+          displayName: userData.name,
+          role: userData.role,
+          department: userData.department,
+          clientIds: userData.assignedClients
+        })
       });
-      toast.success(`Invite link generated: /accept-invite?token=${token}`, { id: loadId, duration: 10000 });
-      setIsInviting(false);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'invites');
-      toast.error('Failed to send invite', { id: loadId });
+
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+
+      toast.success('Account created successfully', { id: loadId });
+      setIsCreating(false);
+      setUserData({ name: '', email: '', password: '', role: 'member', department: 'content', assignedClients: [] });
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || 'Failed to create account', { id: loadId });
     }
   };
 
@@ -710,11 +733,11 @@ const TeamView = ({ allUsers, invites, userId }: { allUsers: UserProfile[], invi
           <p className="text-gray-400 text-sm">Manage internal operators and access tiers.</p>
         </div>
         <button 
-          onClick={() => setIsInviting(true)}
+          onClick={() => setIsCreating(true)}
           className="px-6 py-2 bg-accent text-accent-foreground font-bold rounded-xl shadow-lg shadow-accent/20 flex items-center gap-2"
         >
           <PlusCircle className="w-4 h-4" />
-          Invite Member
+          Create Member
         </button>
       </div>
 
@@ -772,21 +795,22 @@ const TeamView = ({ allUsers, invites, userId }: { allUsers: UserProfile[], invi
         </table>
       </Card>
 
-      {isInviting && (
+      {isCreating && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md">
-            <Card className="p-8 space-y-6">
+            <Card className="p-8 space-y-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold">New Mission Invite</h3>
-                <button onClick={() => setIsInviting(false)} className="text-gray-400 hover:text-black">✕</button>
+                <h3 className="text-xl font-bold">New Mission Account</h3>
+                <button onClick={() => setIsCreating(false)} className="text-gray-400 hover:text-black">✕</button>
               </div>
-              <form onSubmit={handleInvite} className="space-y-4">
+              <form onSubmit={handleCreateUser} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Full Name</label>
                   <input 
                     required
+                    value={userData.name}
                     className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" 
-                    onChange={e => setInviteData({...inviteData, name: e.target.value})}
+                    onChange={e => setUserData({...userData, name: e.target.value})}
                   />
                 </div>
                 <div className="space-y-2">
@@ -794,23 +818,71 @@ const TeamView = ({ allUsers, invites, userId }: { allUsers: UserProfile[], invi
                   <input 
                     required
                     type="email"
+                    value={userData.email}
                     className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" 
-                    onChange={e => setInviteData({...inviteData, email: e.target.value})}
+                    onChange={e => setUserData({...userData, email: e.target.value})}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Department</label>
-                  <select 
-                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none"
-                    onChange={e => setInviteData({...inviteData, department: e.target.value as any})}
-                  >
-                    <option value="content">Content</option>
-                    <option value="leadgen">Lead Gen</option>
-                    <option value="both">Both</option>
-                  </select>
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Initial Password</label>
+                  <input 
+                    required
+                    type="password"
+                    value={userData.password}
+                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" 
+                    onChange={e => setUserData({...userData, password: e.target.value})}
+                  />
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Role</label>
+                    <select 
+                      className="w-full bg-gray-50 border-none px-4 py-2 rounded-xl outline-none text-sm"
+                      value={userData.role}
+                      onChange={e => setUserData({...userData, role: e.target.value as any})}
+                    >
+                      <option value="member">Member (Operator)</option>
+                      <option value="admin">System Admin</option>
+                      <option value="client">Client Access</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Department</label>
+                    <select 
+                      className="w-full bg-gray-50 border-none px-4 py-2 rounded-xl outline-none text-sm"
+                      value={userData.department}
+                      onChange={e => setUserData({...userData, department: e.target.value as any})}
+                    >
+                      <option value="content">Content</option>
+                      <option value="leadgen">Lead Gen</option>
+                      <option value="both">Both</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Assigned Clients</label>
+                  <div className="space-y-2 max-h-32 overflow-y-auto p-2 bg-gray-50 rounded-xl">
+                    {clients.map(client => (
+                      <label key={client.id} className="flex items-center gap-2 text-xs">
+                        <input 
+                          type="checkbox"
+                          checked={userData.assignedClients.includes(client.id)}
+                          onChange={e => {
+                            const newClients = e.target.checked 
+                              ? [...userData.assignedClients, client.id]
+                              : userData.assignedClients.filter(id => id !== client.id);
+                            setUserData({...userData, assignedClients: newClients});
+                          }}
+                        />
+                        {client.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
                 <button type="submit" className="w-full py-4 bg-accent text-accent-foreground font-bold rounded-xl shadow-lg shadow-accent/20">
-                  Deploy Invitation
+                  Deploy Account
                 </button>
               </form>
             </Card>
@@ -2748,7 +2820,7 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === 'team' && userProfile?.role === 'admin' && <TeamView allUsers={allUsers} invites={invites} userId={user?.uid} />}
+          {activeTab === 'team' && userProfile?.role === 'admin' && <TeamView allUsers={allUsers} invites={invites} userId={user?.uid} clients={clients} />}
           {activeTab === 'data-entry' && <DataEntryView clients={clients} userProfile={userProfile} />}
           {activeTab === 'tj-brand' && (userProfile?.role === 'admin' || userProfile?.email === 'tejas@myntmore.com') && <TJPersonalBrandView userProfile={userProfile} />}
           {activeTab === 'sales' && userProfile?.role === 'admin' && <SalesOutreachView userProfile={userProfile} />}
