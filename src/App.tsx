@@ -134,7 +134,8 @@ interface HighScore {
 interface ClientSettings {
   activeContentMetrics: string[];
   activeLeadGenMetrics: string[];
-  customTargets: { [key: string]: number };
+  weeklyTargets: { [key: string]: number };
+  monthlyTargets: { [key: string]: number };
 }
 
 
@@ -1207,8 +1208,10 @@ const ClientSettingsView = ({ client, onClose, allUsers }: { client: Client, onC
   const [settings, setSettings] = useState<ClientSettings>({
     activeContentMetrics: CONTENT_METRICS_LIST.map(m => m.id),
     activeLeadGenMetrics: LEADGEN_METRICS_LIST.map(m => m.id),
-    customTargets: {}
+    weeklyTargets: {},
+    monthlyTargets: {}
   });
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'metrics' | 'targets'>('metrics');
   const [managers, setManagers] = useState({
     contentManagerUid: client.contentManagerUid,
     leadGenManagerUid: client.leadGenManagerUid
@@ -1275,66 +1278,161 @@ const ClientSettingsView = ({ client, onClose, allUsers }: { client: Client, onC
             <button onClick={onClose} className="text-gray-400 hover:text-black">✕</button>
           </div>
 
+          <div className="flex gap-4 p-1 bg-gray-100 rounded-xl w-fit mb-4">
+            <button 
+              onClick={() => setActiveSettingsTab('metrics')}
+              className={`px-6 py-2 rounded-lg text-xs font-bold transition-all ${activeSettingsTab === 'metrics' ? 'bg-white text-black shadow-sm' : 'text-gray-400'}`}
+            >
+              Metric Visibility
+            </button>
+            <button 
+              onClick={() => setActiveSettingsTab('targets')}
+              className={`px-6 py-2 rounded-lg text-xs font-bold transition-all ${activeSettingsTab === 'targets' ? 'bg-white text-black shadow-sm' : 'text-gray-400'}`}
+            >
+              Goal Configuration
+            </button>
+          </div>
+
           <div className="flex-1 overflow-y-auto space-y-8 pr-2 custom-scrollbar">
-            <div className="space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-widest text-accent">Team Assignment</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-mono uppercase text-gray-400">Content Owner</label>
-                  <select 
-                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none text-sm"
-                    value={managers.contentManagerUid}
-                    onChange={e => setManagers({...managers, contentManagerUid: e.target.value})}
-                  >
-                    {allUsers.map(u => <option key={u.uid} value={u.uid}>{u.name}</option>)}
-                  </select>
+            {activeSettingsTab === 'metrics' ? (
+              <>
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-accent">Team Assignment</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-mono uppercase text-gray-400">Content Owner</label>
+                      <select 
+                        className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none text-sm"
+                        value={managers.contentManagerUid}
+                        onChange={e => setManagers({...managers, contentManagerUid: e.target.value})}
+                      >
+                        {allUsers.map(u => <option key={u.uid} value={u.uid}>{u.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-mono uppercase text-gray-400">Outreach Owner</label>
+                      <select 
+                        className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none text-sm"
+                        value={managers.leadGenManagerUid}
+                        onChange={e => setManagers({...managers, leadGenManagerUid: e.target.value})}
+                      >
+                        {allUsers.map(u => <option key={u.uid} value={u.uid}>{u.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-mono uppercase text-gray-400">Outreach Owner</label>
-                  <select 
-                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none text-sm"
-                    value={managers.leadGenManagerUid}
-                    onChange={e => setManagers({...managers, leadGenManagerUid: e.target.value})}
-                  >
-                    {allUsers.map(u => <option key={u.uid} value={u.uid}>{u.name}</option>)}
-                  </select>
+
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-accent">Active Content Metrics</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {CONTENT_METRICS_LIST.map(m => (
+                      <label key={m.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent"
+                          checked={settings.activeContentMetrics?.includes(m.id)}
+                          onChange={() => toggleMetric(m.id, 'content')}
+                        />
+                        <span className="text-xs font-medium">{m.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-accent">Active Lead Gen Metrics</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {LEADGEN_METRICS_LIST.map(m => (
+                      <label key={m.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent"
+                          checked={settings.activeLeadGenMetrics?.includes(m.id)}
+                          onChange={() => toggleMetric(m.id, 'leadgen')}
+                        />
+                        <span className="text-xs font-medium">{m.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-8">
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-accent">Content Goal Authority</h4>
+                  <div className="grid grid-cols-1 gap-4">
+                    {CONTENT_METRICS_LIST.filter(m => m.type === 'number' || m.type === 'auto').map(m => (
+                      <div key={m.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                        <span className="text-xs font-bold">{m.name}</span>
+                        <div className="flex gap-4">
+                          <div className="w-32 space-y-1">
+                            <label className="text-[8px] font-mono text-gray-400 uppercase">Weekly Target</label>
+                            <input 
+                              type="number"
+                              className="w-full bg-white border border-gray-100 px-3 py-2 rounded-lg text-xs font-mono"
+                              value={settings.weeklyTargets?.[m.id] ?? ''}
+                              onChange={e => setSettings({
+                                ...settings,
+                                weeklyTargets: { ...settings.weeklyTargets, [m.id]: Number(e.target.value) }
+                              })}
+                            />
+                          </div>
+                          <div className="w-32 space-y-1">
+                            <label className="text-[8px] font-mono text-gray-400 uppercase">Monthly Target</label>
+                            <input 
+                              type="number"
+                              className="w-full bg-white border border-gray-100 px-3 py-2 rounded-lg text-xs font-mono"
+                              value={settings.monthlyTargets?.[m.id] ?? ''}
+                              onChange={e => setSettings({
+                                ...settings,
+                                monthlyTargets: { ...settings.monthlyTargets, [m.id]: Number(e.target.value) }
+                              })}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-accent">Lead Gen Goal Authority</h4>
+                  <div className="grid grid-cols-1 gap-4">
+                    {LEADGEN_METRICS_LIST.filter(m => m.type === 'number' || m.type === 'auto').map(m => (
+                      <div key={m.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                        <span className="text-xs font-bold">{m.name}</span>
+                        <div className="flex gap-4">
+                          <div className="w-32 space-y-1">
+                            <label className="text-[8px] font-mono text-gray-400 uppercase">Weekly Target</label>
+                            <input 
+                              type="number"
+                              className="w-full bg-white border border-gray-100 px-3 py-2 rounded-lg text-xs font-mono"
+                              value={settings.weeklyTargets?.[m.id] ?? ''}
+                              onChange={e => setSettings({
+                                ...settings,
+                                weeklyTargets: { ...settings.weeklyTargets, [m.id]: Number(e.target.value) }
+                              })}
+                            />
+                          </div>
+                          <div className="w-32 space-y-1">
+                            <label className="text-[8px] font-mono text-gray-400 uppercase">Monthly Target</label>
+                            <input 
+                              type="number"
+                              className="w-full bg-white border border-gray-100 px-3 py-2 rounded-lg text-xs font-mono"
+                              value={settings.monthlyTargets?.[m.id] ?? ''}
+                              onChange={e => setSettings({
+                                ...settings,
+                                monthlyTargets: { ...settings.monthlyTargets, [m.id]: Number(e.target.value) }
+                              })}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-
-            <div className="space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-widest text-accent">Active Content Metrics</h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {CONTENT_METRICS_LIST.map(m => (
-                  <label key={m.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      className="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent"
-                      checked={settings.activeContentMetrics?.includes(m.id)}
-                      onChange={() => toggleMetric(m.id, 'content')}
-                    />
-                    <span className="text-xs font-medium">{m.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-widest text-accent">Active Lead Gen Metrics</h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {LEADGEN_METRICS_LIST.map(m => (
-                  <label key={m.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      className="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent"
-                      checked={settings.activeLeadGenMetrics?.includes(m.id)}
-                      onChange={() => toggleMetric(m.id, 'leadgen')}
-                    />
-                    <span className="text-xs font-medium">{m.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="pt-6 border-t border-gray-100 flex gap-4">
@@ -1397,7 +1495,25 @@ const DataEntryView = ({ clients, userProfile }: { clients: Client[], userProfil
     if (snap.exists()) {
       setEntryData(snap.data());
     } else {
-      setEntryData({ contentMetrics: {}, leadGenMetrics: {} });
+      // Pre-fill targets from settings
+      const settings = allClientSettings[selectedClient];
+      const initialContent: any = {};
+      const initialLeadGen: any = {};
+      
+      if (settings?.weeklyTargets) {
+        Object.entries(settings.weeklyTargets).forEach(([id, target]) => {
+          if (id.startsWith('C')) {
+            initialContent[id] = { target };
+          } else if (id.startsWith('L')) {
+            initialLeadGen[id] = { target };
+          }
+        });
+      }
+      
+      setEntryData({ 
+        contentMetrics: initialContent, 
+        leadGenMetrics: initialLeadGen 
+      });
     }
   };
 
@@ -1734,7 +1850,9 @@ export default function App() {
 
   const [invites, setInvites] = useState<Invite[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [allClientSettings, setAllClientSettings] = useState<{ [clientId: string]: ClientSettings }>({});
   const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly');
   const [meetingIndex, setMeetingIndex] = useState(0);
   const [isAddingClient, setIsAddingClient] = useState(false);
   const [activeConfigClient, setActiveConfigClient] = useState<string | null>(null);
@@ -1840,9 +1958,15 @@ export default function App() {
       const usersUnsub = onSnapshot(collection(db, 'users'), (snap) => {
         setAllUsers(snap.docs.map(d => d.data() as UserProfile));
       });
+      const settingsUnsub = onSnapshot(collection(db, 'clientSettings'), (snap) => {
+        const settings: any = {};
+        snap.docs.forEach(d => settings[d.id] = d.data());
+        setAllClientSettings(settings);
+      });
       return () => {
         invitesUnsub();
         usersUnsub();
+        settingsUnsub();
       };
     }
   }, [user, userProfile]);
@@ -2271,18 +2395,34 @@ export default function App() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <Card className="lg:col-span-2 p-8">
                   <div className="flex justify-between items-center mb-8">
-                    <h3 className="font-bold tracking-tight">Average Portfolio Performance</h3>
+                    <div className="flex items-center gap-6">
+                      <h3 className="font-bold tracking-tight">Portfolio Pulse Performance</h3>
+                      <div className="flex p-1 bg-gray-100 rounded-xl">
+                        <button 
+                          onClick={() => setViewMode('weekly')}
+                          className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${viewMode === 'weekly' ? 'bg-white text-black shadow-sm' : 'text-gray-400'}`}
+                        >
+                          Weekly
+                        </button>
+                        <button 
+                          onClick={() => setViewMode('monthly')}
+                          className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${viewMode === 'monthly' ? 'bg-white text-black shadow-sm' : 'text-gray-400'}`}
+                        >
+                          Monthly
+                        </button>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-4 text-xs font-mono">
                       <div className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 bg-black rounded-full" />
-                        <span>Performance Rate</span>
+                        <div className="w-2 h-2 bg-yellow-400 rounded-full" />
+                        <span>Achievement Rate</span>
                       </div>
                     </div>
                   </div>
                   <div className="h-[300px] w-full">
                     {clients.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={LAST_12_WEEKS.map(week => {
+                        <AreaChart data={viewMode === 'weekly' ? LAST_12_WEEKS.map(week => {
                           const achievements = clients.map(c => {
                             const data = c.weeklyPerformance.find(w => w.weekStart === week.weekStart);
                             if (!data) return 0;
@@ -2304,14 +2444,35 @@ export default function App() {
                             return totalTarget > 0 ? (totalActual / totalTarget) : 0;
                           });
                           return {
-                            name: week.label,
+                            name: week.label.split('(')[0],
                             achievement: (achievements.reduce((a, b) => a + b, 0) / (clients.length || 1)) * 100
                           };
-                        })}>
+                        }) : (() => {
+                          const monthsMap: { [key: string]: { name: string, achievements: number[] } } = {};
+                          LAST_12_WEEKS.forEach(week => {
+                            const date = new Date(week.weekStart);
+                            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                            const monthName = date.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+                            if (!monthsMap[monthKey]) monthsMap[monthKey] = { name: monthName, achievements: [] };
+                            const weeklyAchievements = clients.map(c => {
+                              const data = c.weeklyPerformance.find(w => w.weekStart === week.weekStart);
+                              if (!data) return 0;
+                              let tt = 0, ta = 0;
+                              const ps = (ms: any) => Object.values(ms).forEach((m: any) => { if (typeof m.value === 'number' && m.target) { tt += m.target; ta += m.value; } });
+                              ps(data.contentMetrics || {}); ps(data.leadGenMetrics || {});
+                              return tt > 0 ? (ta / tt) : 0;
+                            });
+                            monthsMap[monthKey].achievements.push(weeklyAchievements.reduce((a, b) => a + b, 0) / (clients.length || 1));
+                          });
+                          return Object.values(monthsMap).reverse().map(m => ({
+                            name: m.name,
+                            achievement: (m.achievements.reduce((a, b) => a + b, 0) / (m.achievements.length || 1)) * 100
+                          }));
+                        })()}>
                           <defs>
                             <linearGradient id="colorAchieve" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#000000" stopOpacity={0.1}/>
-                              <stop offset="95%" stopColor="#000000" stopOpacity={0}/>
+                              <stop offset="5%" stopColor="#FFC947" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#FFC947" stopOpacity={0}/>
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0F0F0" />
@@ -2330,7 +2491,6 @@ export default function App() {
                       </div>
                     )}
                   </div>
-
                 </Card>
 
                 <div className="space-y-6">
@@ -2364,18 +2524,102 @@ export default function App() {
                       })
                     )}
                   </div>
-                  
-                  <Card className="p-6 bg-gray-50 border-none">
-                    <div className="flex items-center gap-2 text-gray-900 mb-3">
-                      <AlertCircle className="w-4 h-4" />
-                      <p className="text-[10px] font-mono uppercase tracking-[0.2em] font-bold">AI Insight Engine</p>
-                    </div>
-                    <p className="text-xs leading-relaxed text-gray-500">
-                      Based on last 4 weeks, <span className="font-bold text-black">Mindful — Rohan</span> is projected to hit 'On Track' status by W18 if Accept Rate continues its 5% WoW growth.
-                    </p>
-                  </Card>
                 </div>
               </div>
+
+              {viewMode === 'monthly' && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-bold tracking-tight">Monthly Milestone Authority</h3>
+                    <Badge variant="accent">Aggregated Data</Badge>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-6">
+                    {clients.map(client => {
+                      const settings = allClientSettings[client.id];
+                      const monthlyTargets = settings?.monthlyTargets || {};
+                      
+                      const monthsMap: { [key: string]: { name: string, weeks: WeeklyPerformance[] } } = {};
+                      client.weeklyPerformance.forEach(perf => {
+                        const date = new Date(perf.weekStart || perf.weekId);
+                        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                        if (!monthsMap[monthKey]) monthsMap[monthKey] = { name: date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }), weeks: [] };
+                        monthsMap[monthKey].weeks.push(perf);
+                      });
+
+                      const latestMonthKey = Object.keys(monthsMap).sort().reverse()[0];
+                      const latestMonth = monthsMap[latestMonthKey];
+                      if (!latestMonth) return null;
+
+                      return (
+                        <Card key={client.id} className="p-8 space-y-6">
+                          <div className="flex justify-between items-center border-b border-gray-50 pb-4">
+                            <h4 className="font-black text-lg uppercase tracking-tight">{client.name} — {latestMonth.name}</h4>
+                            <div className="text-right">
+                              <p className="text-[10px] font-mono text-gray-400 uppercase">Monthly Progress</p>
+                              <p className="text-xl font-black">
+                                {(() => {
+                                  let tt = 0, ta = 0;
+                                  Object.entries(monthlyTargets).forEach(([id, target]) => {
+                                    const isP = id.includes('Rate') || TJ_METRICS.youtube.some(m => m.id === id && m.type === 'percentage');
+                                    const wvs = latestMonth.weeks.map(w => (w.contentMetrics?.[id] || w.leadGenMetrics?.[id])?.value).filter(v => typeof v === 'number') as number[];
+                                    if (wvs.length > 0) {
+                                      ta += isP ? (wvs.reduce((a, b) => a + b, 0) / wvs.length) : wvs.reduce((a, b) => a + b, 0);
+                                      tt += target;
+                                    }
+                                  });
+                                  return tt > 0 ? ((ta / tt) * 100).toFixed(0) : 0;
+                                })()}%
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-4">
+                              <p className="text-[10px] font-mono text-accent uppercase font-bold tracking-widest">Content Milestones</p>
+                              <div className="space-y-3">
+                                {CONTENT_METRICS_LIST.filter(m => monthlyTargets[m.id]).map(m => {
+                                  const wvs = latestMonth.weeks.map(w => w.contentMetrics?.[m.id]?.value).filter(v => typeof v === 'number') as number[];
+                                  const target = monthlyTargets[m.id];
+                                  const actual = m.type === 'auto' || m.name.includes('%') ? (wvs.reduce((a, b) => a + b, 0) / (wvs.length || 1)) : wvs.reduce((a, b) => a + b, 0);
+                                  return (
+                                    <div key={m.id} className="flex justify-between items-center text-sm p-3 bg-gray-50 rounded-xl">
+                                      <span className="font-medium text-gray-600">{m.name}</span>
+                                      <div className="flex gap-4 font-mono">
+                                        <span className="text-gray-400">T: {target}</span>
+                                        <span className={`font-bold ${actual >= target ? 'text-accent' : 'text-red-400'}`}>A: {actual.toFixed(m.type === 'auto' ? 1 : 0)}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                            <div className="space-y-4">
+                              <p className="text-[10px] font-mono text-black uppercase font-bold tracking-widest">Outreach Milestones</p>
+                              <div className="space-y-3">
+                                {LEADGEN_METRICS_LIST.filter(m => monthlyTargets[m.id]).map(m => {
+                                  const wvs = latestMonth.weeks.map(w => w.leadGenMetrics?.[m.id]?.value).filter(v => typeof v === 'number') as number[];
+                                  const target = monthlyTargets[m.id];
+                                  const actual = m.type === 'auto' || m.name.includes('%') ? (wvs.reduce((a, b) => a + b, 0) / (wvs.length || 1)) : wvs.reduce((a, b) => a + b, 0);
+                                  return (
+                                    <div key={m.id} className="flex justify-between items-center text-sm p-3 bg-gray-50 rounded-xl">
+                                      <span className="font-medium text-gray-600">{m.name}</span>
+                                      <div className="flex gap-4 font-mono">
+                                        <span className="text-gray-400">T: {target}</span>
+                                        <span className={`font-bold ${actual >= target ? 'text-accent' : 'text-red-400'}`}>A: {actual.toFixed(m.type === 'auto' ? 1 : 0)}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
