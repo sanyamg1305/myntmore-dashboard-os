@@ -1481,7 +1481,8 @@ const DataEntryView = ({ clients, userProfile }: { clients: Client[], userProfil
       setClientSettings({
         activeContentMetrics: CONTENT_METRICS_LIST.map(m => m.id),
         activeLeadGenMetrics: LEADGEN_METRICS_LIST.map(m => m.id),
-        customTargets: {}
+        weeklyTargets: {},
+        monthlyTargets: {}
       });
     }
   };
@@ -1496,7 +1497,7 @@ const DataEntryView = ({ clients, userProfile }: { clients: Client[], userProfil
       setEntryData(snap.data());
     } else {
       // Pre-fill targets from settings
-      const settings = allClientSettings[selectedClient];
+      const settings = clientSettings;
       const initialContent: any = {};
       const initialLeadGen: any = {};
       
