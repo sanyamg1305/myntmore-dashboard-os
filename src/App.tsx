@@ -563,9 +563,19 @@ const AcceptInviteView = ({ onAcceptSuccess }: { onAcceptSuccess: () => void }) 
     const loadId = toast.loading('Initializing identity...');
 
     try {
-      const u = await createUserWithEmailAndPassword(auth, inviteData.email, password);
+      let uid = '';
+      
+      // If user is already signed in with the same email, use that UID
+      if (auth.currentUser && auth.currentUser.email === inviteData.email) {
+        uid = auth.currentUser.uid;
+      } else {
+        // Otherwise create new email/password account
+        const u = await createUserWithEmailAndPassword(auth, inviteData.email, password);
+        uid = u.user.uid;
+      }
+
       const profile: UserProfile = {
-        uid: u.user.uid,
+        uid,
         email: inviteData.email,
         name: inviteData.name,
         department: inviteData.department,
@@ -575,7 +585,7 @@ const AcceptInviteView = ({ onAcceptSuccess }: { onAcceptSuccess: () => void }) 
         invitedBy: inviteData.invitedBy,
         createdAt: serverTimestamp()
       };
-      await setDoc(doc(db, 'users', u.user.uid), profile);
+      await setDoc(doc(db, 'users', uid), profile);
       await updateDoc(doc(db, 'invites', inviteData.id), { status: 'accepted' });
       
       toast.success('Access Granted. Welcome to Myntmore OS.', { id: loadId });
@@ -630,23 +640,32 @@ const AcceptInviteView = ({ onAcceptSuccess }: { onAcceptSuccess: () => void }) 
                 className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl text-gray-400 font-medium"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-mono text-gray-400 uppercase tracking-widest pl-1">Define Master Password</label>
-              <input 
-                required
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none focus:ring-2 ring-accent/50"
-                placeholder="••••••••"
-              />
-            </div>
+
+            {auth.currentUser && auth.currentUser.email === inviteData.email ? (
+              <div className="p-4 bg-accent/5 border border-accent/20 rounded-xl space-y-3">
+                <p className="text-[10px] font-mono text-accent uppercase tracking-widest text-center italic">Identity Detected</p>
+                <p className="text-xs text-gray-600 text-center">You are currently signed in as <span className="font-bold">{auth.currentUser.displayName || auth.currentUser.email}</span>. Click below to link your account to Myntmore OS.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-[10px] font-mono text-gray-400 uppercase tracking-widest pl-1">Define Master Password</label>
+                <input 
+                  required
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none focus:ring-2 ring-accent/50"
+                  placeholder="••••••••"
+                />
+              </div>
+            )}
+
             <button 
               type="submit" 
               disabled={isProcessing}
               className="w-full py-4 bg-accent text-accent-foreground font-black rounded-xl shadow-xl shadow-accent/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
             >
-              SECURE IDENTITY & JOIN
+              {auth.currentUser && auth.currentUser.email === inviteData.email ? 'CONFIRM & JOIN OPERATIONAL UNIT' : 'SECURE IDENTITY & JOIN'}
             </button>
           </form>
         </Card>
@@ -1942,9 +1961,8 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
-    const path = window.location.pathname;
     
-    if (path === '/accept-invite' && token) {
+    if (token) {
       setInviteToken(token);
       setActiveTab('accept-invite');
     }
@@ -1984,42 +2002,57 @@ export default function App() {
   }, [userProfile]);
 
 
-  // Auth Effect
+  // Auth & Profile Effect
   useEffect(() => {
-    return onAuthStateChanged(auth, async (u) => {
+    let profileUnsub: (() => void) | null = null;
+
+    const authUnsub = onAuthStateChanged(auth, async (u) => {
       try {
         setUser(u);
+        if (profileUnsub) {
+          profileUnsub();
+          profileUnsub = null;
+        }
+
         if (u) {
+          // Setup real-time listener for user profile
           const userRef = doc(db, 'users', u.uid);
-          const userDoc = await getDoc(userRef);
-          if (userDoc.exists()) {
-            setUserProfile(userDoc.data() as UserProfile);
-          } else if (u.email === 'sanyam@myntmore.com') {
-            // Auto-bootstrap admin
-            const profile: UserProfile = { 
-              uid: u.uid,
-              email: u.email, 
-              role: 'admin', 
-              name: 'Sanyam', 
-              department: 'both',
-              assignedClients: [],
-              inviteStatus: 'active',
-              invitedBy: 'system',
-              createdAt: serverTimestamp()
-            };
-            await setDoc(userRef, profile);
-            setUserProfile(profile);
-          }
+          profileUnsub = onSnapshot(userRef, async (snap) => {
+            if (snap.exists()) {
+              setUserProfile(snap.data() as UserProfile);
+            } else if (u.email === 'sanyam@myntmore.com') {
+              // Auto-bootstrap admin
+              const profile: UserProfile = { 
+                uid: u.uid,
+                email: u.email, 
+                role: 'admin', 
+                name: 'Sanyam', 
+                department: 'both',
+                assignedClients: [],
+                inviteStatus: 'active',
+                invitedBy: 'system',
+                createdAt: serverTimestamp()
+              };
+              await setDoc(userRef, profile);
+              // Profile listener will pick this up
+            } else {
+              setUserProfile(null);
+            }
+          });
         } else {
           setUserProfile(null);
         }
       } catch (error) {
         console.error('Auth sync error:', error);
-        // Don't set profile but let auth ready continue
       } finally {
         setIsAuthReady(true);
       }
     });
+
+    return () => {
+      authUnsub();
+      if (profileUnsub) profileUnsub();
+    };
   }, []);
 
   // Data Fetching Effect (Extended for Invites/Users)
