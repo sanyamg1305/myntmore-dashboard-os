@@ -1252,8 +1252,8 @@ const ClientSettingsView = ({ client, onClose, allUsers }: { client: Client, onC
 
       toast.success('Configuration committed', { id: loadId });
       onClose();
-    } catch (error) {
-      toast.error('Failed to save settings', { id: loadId });
+    } catch (error: any) {
+      toast.error(`Failed to save settings: ${error.message}`, { id: loadId });
     } finally {
       setIsSaving(false);
     }

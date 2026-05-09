@@ -53,13 +53,13 @@ service cloud.firestore {
     // Clients
     match /clients/{clientId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isSignedIn();
     }
 
     // Client Settings
     match /clientSettings/{clientId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isSignedIn();
     }
 
     // Weekly Data — content and lead gen are separate sub-fields
