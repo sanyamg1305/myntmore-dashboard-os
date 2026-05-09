@@ -68,6 +68,39 @@ service cloud.firestore {
       allow create, update: if isSignedIn();
     }
 
+    // High Scores
+    match /highScores/{clientId}/metrics/{metricId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // TJ Personal Brand - Nested structure
+    match /tjPersonalBrand/{year}/{weekId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    // Top-level collection for exports
+    match /tjPersonalBrand/{docId} {
+      allow read: if isSignedIn();
+    }
+
+    // Sales Data
+    match /salesData/{year}/{weekId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /salesData/{docId} {
+      allow read: if isSignedIn();
+    }
+
+    // Sales Leads
+    match /salesLeads/{leadId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
     // Company-level data
     match /companyData/{document=**} {
       allow read: if isSignedIn();

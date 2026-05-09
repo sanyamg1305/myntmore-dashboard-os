@@ -413,19 +413,24 @@ const Badge = ({ children, variant = "default", className = "" }: { children: Re
 const checkAndUpdateHighScore = async (clientId: string, metricId: string, newValue: number, weekStart: string) => {
   if (newValue === undefined || newValue === null || isNaN(newValue)) return false;
   
-  const hsRef = doc(db, 'highScores', clientId, 'metrics', metricId);
-  const hsSnap = await getDoc(hsRef);
-  
-  if (!hsSnap.exists() || newValue > hsSnap.data().lifetimeHigh) {
-    await setDoc(hsRef, {
-      lifetimeHigh: newValue,
-      achievedWeek: weekStart,
-      previousHigh: hsSnap.exists() ? hsSnap.data().lifetimeHigh : null,
-      updatedAt: serverTimestamp()
-    });
-    return true; // signals new record
+  try {
+    const hsRef = doc(db, 'highScores', clientId, 'metrics', metricId);
+    const hsSnap = await getDoc(hsRef);
+    
+    if (!hsSnap.exists() || newValue > hsSnap.data().lifetimeHigh) {
+      await setDoc(hsRef, {
+        lifetimeHigh: newValue,
+        achievedWeek: weekStart,
+        previousHigh: hsSnap.exists() ? hsSnap.data().lifetimeHigh : null,
+        updatedAt: serverTimestamp()
+      });
+      return true; // signals new record
+    }
+    return false;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `highScores/${clientId}/metrics/${metricId}`);
+    return false;
   }
-  return false;
 };
 
 const exportAllData = async (clients: Client[]) => {
@@ -1541,24 +1546,25 @@ const DataEntryView = ({ clients, userProfile }: { clients: Client[], userProfil
       const weekData = LAST_12_WEEKS.find(w => w.weekStart === selectedWeek);
 
       const updatePayload: any = {
-        weekStart: weekData?.weekStart,
-        weekEnd: weekData?.weekEnd,
-        weekLabel: weekData?.label,
+        weekStart: weekData?.weekStart || selectedWeek,
+        weekEnd: weekData?.weekEnd || '',
+        weekLabel: weekData?.label || '',
         weekOf: new Date(selectedWeek).toISOString()
       };
 
       const metricsToUpdate = activeDataTab === 'content' ? entryData.contentMetrics : entryData.leadGenMetrics;
       const prefix = activeDataTab === 'content' ? 'contentMetrics' : 'leadGenMetrics';
 
-      Object.entries(metricsToUpdate).forEach(([id, data]: [string, any]) => {
-        updatePayload[`${prefix}.${id}`] = data;
-      });
-
-      updatePayload[`${prefix}.lastUpdatedBy`] = userProfile?.uid;
-      updatePayload[`${prefix}.lastUpdatedAt`] = serverTimestamp();
+      // Build nested object instead of dot notation keys for setDoc merge
+      const metricsObj: any = { ...(entryData[prefix] || {}) };
+      
+      metricsObj.lastUpdatedBy = userProfile?.uid || 'system';
+      metricsObj.lastUpdatedAt = serverTimestamp();
       if (submit) {
-        updatePayload[`${prefix}.submittedAt`] = serverTimestamp();
+        metricsObj.submittedAt = serverTimestamp();
       }
+
+      updatePayload[prefix] = metricsObj;
 
       await setDoc(weekRef, updatePayload, { merge: true });
 
@@ -1580,7 +1586,8 @@ const DataEntryView = ({ clients, userProfile }: { clients: Client[], userProfil
       loadHighScores(); // Refresh high scores
     } catch (error) {
       console.error(error);
-      toast.error('Sync failed', { id: loadId });
+      handleFirestoreError(error, OperationType.WRITE, `weeklyData/${selectedClient}`);
+      toast.error('Sync failed - Permission Denied or Network Error', { id: loadId });
     } finally {
       setIsSaving(false);
     }
