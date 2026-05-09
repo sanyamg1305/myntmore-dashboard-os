@@ -48,65 +48,14 @@ async function startServer() {
 
   // API Route: Create User (Admin Only)
   app.post("/api/admin/create-user", async (req, res) => {
-    console.log("POST /api/admin/create-user - Request received");
-    const { email, password, displayName, role, department, clientIds } = req.body;
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      console.warn("Unauthorized: No Bearer token");
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const idToken = authHeader.split("Bearer ")[1];
-
+    // We import the handler directly to keep logic consistent
     try {
-      console.log("Verifying ID token...");
-      const decodedToken = await admin.auth().verifyIdToken(idToken);
-      const requesterUid = decodedToken.uid;
-      console.log(`Requester UID: ${requesterUid}`);
-
-      // Check if the requester is an admin in Firestore
-      const requesterDoc = await db.collection("users").doc(requesterUid).get();
-      if (!requesterDoc.exists) {
-        console.warn(`Requester document ${requesterUid} not found in users collection`);
-        return res.status(403).json({ error: "Forbidden: Admin profile not found" });
-      }
-
-      const userDataFromDb = requesterDoc.data();
-      if (userDataFromDb?.role !== "admin") {
-        console.warn(`Requester ${requesterUid} is not an admin. Role: ${userDataFromDb?.role}`);
-        return res.status(403).json({ error: "Forbidden: Admin access required" });
-      }
-
-      console.log(`Creating user in Auth: ${email}`);
-      const userRecord = await admin.auth().createUser({
-        email,
-        password,
-        displayName,
-      });
-
-      console.log(`User created in Auth: ${userRecord.uid}. Saving to Firestore...`);
-      // Create the user document in Firestore
-      await db.collection("users").doc(userRecord.uid).set({
-        uid: userRecord.uid,
-        email,
-        displayName,
-        role: role || "member",
-        department: department || "content",
-        assignedClients: clientIds || [],
-        inviteStatus: 'active',
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      console.log("User record created in Firestore successfully");
-      res.json({ success: true, uid: userRecord.uid });
-    } catch (error: any) {
-      console.error("Error creating user:", error);
-      // Return a JSON error instead of letting it fall through
-      if (!res.headersSent) {
-        res.status(500).json({ error: error.message || "Internal Server Error" });
-      }
+      const handler = await import("./api/admin/create-user.ts");
+      // @ts-ignore - Vercel handler type
+      await handler.default(req, res);
+    } catch (e) {
+      console.error("Failed to load API handler:", e);
+      res.status(500).json({ error: "API Internal Error" });
     }
   });
 
