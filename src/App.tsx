@@ -660,56 +660,37 @@ const TeamView = ({ allUsers, invites, userId, clients }: { allUsers: UserProfil
   const [userData, setUserData] = useState({ 
     name: '', 
     email: '', 
-    password: '',
     role: 'member' as UserRole,
     department: 'content' as 'content' | 'leadgen' | 'both',
-    assignedClients: [] as string[]
   });
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
 
-  const handleCreateUser = async (e: React.FormEvent) => {
+  const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    const loadId = toast.loading('Creating system account...');
+    const loadId = toast.loading('Generating secure invitation...');
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error('Not authenticated');
+      const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const inviteData: any = {
+        email: userData.email,
+        name: userData.name,
+        role: userData.role,
+        department: userData.department,
+        status: 'pending',
+        token,
+        invitedBy: userId || 'admin',
+        createdAt: serverTimestamp()
+      };
 
-      const response = await fetch('/api/admin/create-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({
-          email: userData.email,
-          password: userData.password,
-          displayName: userData.name,
-          role: userData.role,
-          department: userData.department,
-          clientIds: userData.assignedClients
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = `Server error (${response.status})`;
-        try {
-          const errorJson = JSON.parse(errorText);
-          errorMessage = errorJson.error || errorMessage;
-        } catch (e) {
-          errorMessage += `: ${errorText || 'Empty response'}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
-
-      toast.success('Account created successfully', { id: loadId });
-      setIsCreating(false);
-      setUserData({ name: '', email: '', password: '', role: 'member', department: 'content', assignedClients: [] });
+      await addDoc(collection(db, 'invites'), inviteData);
+      
+      const baseUrl = window.location.origin;
+      const link = `${baseUrl}/?token=${token}`;
+      setInviteLink(link);
+      
+      toast.success('Invitation generated successfully', { id: loadId });
     } catch (error: any) {
       console.error(error);
-      toast.error(error.message || 'Failed to create account', { id: loadId });
+      toast.error(error.message || 'Failed to generate invitation', { id: loadId });
     }
   };
 
@@ -812,91 +793,93 @@ const TeamView = ({ allUsers, invites, userId, clients }: { allUsers: UserProfil
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md">
             <Card className="p-8 space-y-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold">New Mission Account</h3>
-                <button onClick={() => setIsCreating(false)} className="text-gray-400 hover:text-black">✕</button>
+                <h3 className="text-xl font-bold">{inviteLink ? 'Invitation Secured' : 'Send Mission Invite'}</h3>
+                <button onClick={() => { setIsCreating(false); setInviteLink(null); }} className="text-gray-400 hover:text-black">✕</button>
               </div>
-              <form onSubmit={handleCreateUser} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Full Name</label>
-                  <input 
-                    required
-                    value={userData.name}
-                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" 
-                    onChange={e => setUserData({...userData, name: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Email Address</label>
-                  <input 
-                    required
-                    type="email"
-                    value={userData.email}
-                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" 
-                    onChange={e => setUserData({...userData, email: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Initial Password</label>
-                  <input 
-                    required
-                    type="password"
-                    value={userData.password}
-                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" 
-                    onChange={e => setUserData({...userData, password: e.target.value})}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Role</label>
-                    <select 
-                      className="w-full bg-gray-50 border-none px-4 py-2 rounded-xl outline-none text-sm"
-                      value={userData.role}
-                      onChange={e => setUserData({...userData, role: e.target.value as any})}
-                    >
-                      <option value="member">Member (Operator)</option>
-                      <option value="admin">System Admin</option>
-                      <option value="client">Client Access</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Department</label>
-                    <select 
-                      className="w-full bg-gray-50 border-none px-4 py-2 rounded-xl outline-none text-sm"
-                      value={userData.department}
-                      onChange={e => setUserData({...userData, department: e.target.value as any})}
-                    >
-                      <option value="content">Content</option>
-                      <option value="leadgen">Lead Gen</option>
-                      <option value="both">Both</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Assigned Clients</label>
-                  <div className="space-y-2 max-h-32 overflow-y-auto p-2 bg-gray-50 rounded-xl">
-                    {clients.map(client => (
-                      <label key={client.id} className="flex items-center gap-2 text-xs">
-                        <input 
-                          type="checkbox"
-                          checked={userData.assignedClients.includes(client.id)}
-                          onChange={e => {
-                            const newClients = e.target.checked 
-                              ? [...userData.assignedClients, client.id]
-                              : userData.assignedClients.filter(id => id !== client.id);
-                            setUserData({...userData, assignedClients: newClients});
-                          }}
-                        />
-                        {client.name}
-                      </label>
-                    ))}
-                  </div>
-                </div>
 
-                <button type="submit" className="w-full py-4 bg-accent text-accent-foreground font-bold rounded-xl shadow-lg shadow-accent/20">
-                  Deploy Account
-                </button>
-              </form>
+              {!inviteLink ? (
+                <form onSubmit={handleInviteUser} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Full Name</label>
+                    <input 
+                      required
+                      value={userData.name}
+                      placeholder="e.g. John Doe"
+                      className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" 
+                      onChange={e => setUserData({...userData, name: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Email Address</label>
+                    <input 
+                      required
+                      type="email"
+                      value={userData.email}
+                      placeholder="john@myntmore.com"
+                      className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none" 
+                      onChange={e => setUserData({...userData, email: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Role</label>
+                      <select 
+                        className="w-full bg-gray-50 border-none px-4 py-2 rounded-xl outline-none text-sm"
+                        value={userData.role}
+                        onChange={e => setUserData({...userData, role: e.target.value as any})}
+                      >
+                        <option value="member">Member</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-mono uppercase tracking-widest text-gray-400">Department</label>
+                      <select 
+                        className="w-full bg-gray-50 border-none px-4 py-2 rounded-xl outline-none text-sm"
+                        value={userData.department}
+                        onChange={e => setUserData({...userData, department: e.target.value as any})}
+                      >
+                        <option value="content">Content</option>
+                        <option value="leadgen">Lead Gen</option>
+                        <option value="both">Both</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <button type="submit" className="w-full py-4 bg-accent text-accent-foreground font-bold rounded-xl shadow-lg shadow-accent/20">
+                    Generate Invitation
+                  </button>
+                </form>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-accent/5 border border-accent/20 rounded-xl space-y-2">
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-accent">Active Invitation Link</p>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        readOnly 
+                        value={inviteLink}
+                        className="flex-1 bg-white border-none px-3 py-2 rounded-lg text-xs outline-none font-mono"
+                      />
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(inviteLink);
+                          toast.success('Link copied to clipboard');
+                        }}
+                        className="p-2 bg-accent text-accent-foreground rounded-lg"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-400 text-center uppercase tracking-widest">Send this link to the member. They will be prompted to create their password.</p>
+                  <button 
+                    onClick={() => { setIsCreating(false); setInviteLink(null); }}
+                    className="w-full py-4 border border-gray-200 text-gray-500 font-bold rounded-xl transition-colors hover:bg-gray-50"
+                  >
+                    Close
+                  </button>
+                </div>
+              )}
             </Card>
           </motion.div>
         </div>
