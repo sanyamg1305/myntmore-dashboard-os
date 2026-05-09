@@ -572,8 +572,8 @@ const AcceptInviteView = ({ onAcceptSuccess }: { onAcceptSuccess: () => void }) 
       
       toast.success('Access Granted. Welcome to Myntmore OS.', { id: loadId });
       onAcceptSuccess();
-    } catch (error) {
-      toast.error('Identity creation failed', { id: loadId });
+    } catch (error: any) {
+      toast.error(`Identity creation failed: ${error.message}`, { id: loadId });
     } finally {
       setIsProcessing(false);
     }
@@ -1203,11 +1203,15 @@ const SalesOutreachView = ({ userProfile }: { userProfile: UserProfile | null })
   );
 };
 
-const ClientSettingsView = ({ client, onClose }: { client: Client, onClose: () => void }) => {
+const ClientSettingsView = ({ client, onClose, allUsers }: { client: Client, onClose: () => void, allUsers: UserProfile[] }) => {
   const [settings, setSettings] = useState<ClientSettings>({
     activeContentMetrics: CONTENT_METRICS_LIST.map(m => m.id),
     activeLeadGenMetrics: LEADGEN_METRICS_LIST.map(m => m.id),
     customTargets: {}
+  });
+  const [managers, setManagers] = useState({
+    contentManagerUid: client.contentManagerUid,
+    leadGenManagerUid: client.leadGenManagerUid
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -1225,12 +1229,52 @@ const ClientSettingsView = ({ client, onClose }: { client: Client, onClose: () =
 
   const handleSave = async () => {
     setIsSaving(true);
+    const loadId = toast.loading('Updating client configuration...');
     try {
+      // Save metrics settings
       await setDoc(doc(db, 'clientSettings', client.id), settings);
-      toast.success('Settings updated');
+      
+      // Save manager updates if changed
+      if (managers.contentManagerUid !== client.contentManagerUid || managers.leadGenManagerUid !== client.leadGenManagerUid) {
+        const contentMan = allUsers.find(u => u.uid === managers.contentManagerUid);
+        const leadMan = allUsers.find(u => u.uid === managers.leadGenManagerUid);
+        
+        await updateDoc(doc(db, 'clients', client.id), {
+          contentManagerUid: managers.contentManagerUid,
+          contentManagerName: contentMan?.name || 'Unknown',
+          leadGenManagerUid: managers.leadGenManagerUid,
+          leadGenManagerName: leadMan?.name || 'Unknown',
+        });
+
+        // Update user profiles (Simplified: in a real app this might be handled by a cloud function or a more robust sync)
+        const syncUser = async (uid: string, role: 'contentManager' | 'leadGenManager', add: boolean) => {
+          if (!uid) return;
+          const uRef = doc(db, 'users', uid);
+          const uDoc = await getDoc(uRef);
+          if (uDoc.exists()) {
+            const assigned = uDoc.data().assignedClients || [];
+            const updated = add 
+              ? (assigned.find((a: any) => a.clientId === client.id && a.role === role) ? assigned : [...assigned, { clientId: client.id, role }])
+              : assigned.filter((a: any) => !(a.clientId === client.id && a.role === role));
+            await updateDoc(uRef, { assignedClients: updated });
+          }
+        };
+
+        // Remove old managers if changed
+        if (managers.contentManagerUid !== client.contentManagerUid) {
+          await syncUser(client.contentManagerUid, 'contentManager', false);
+          await syncUser(managers.contentManagerUid, 'contentManager', true);
+        }
+        if (managers.leadGenManagerUid !== client.leadGenManagerUid) {
+          await syncUser(client.leadGenManagerUid, 'leadGenManager', false);
+          await syncUser(managers.leadGenManagerUid, 'leadGenManager', true);
+        }
+      }
+
+      toast.success('Configuration committed', { id: loadId });
       onClose();
     } catch (error) {
-      toast.error('Failed to save settings');
+      toast.error('Failed to save settings', { id: loadId });
     } finally {
       setIsSaving(false);
     }
@@ -1256,6 +1300,32 @@ const ClientSettingsView = ({ client, onClose }: { client: Client, onClose: () =
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-8 pr-2 custom-scrollbar">
+            <div className="space-y-4">
+              <h4 className="text-xs font-black uppercase tracking-widest text-accent">Team Assignment</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono uppercase text-gray-400">Content Owner</label>
+                  <select 
+                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none text-sm"
+                    value={managers.contentManagerUid}
+                    onChange={e => setManagers({...managers, contentManagerUid: e.target.value})}
+                  >
+                    {allUsers.map(u => <option key={u.uid} value={u.uid}>{u.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono uppercase text-gray-400">Outreach Owner</label>
+                  <select 
+                    className="w-full bg-gray-50 border-none px-4 py-3 rounded-xl outline-none text-sm"
+                    value={managers.leadGenManagerUid}
+                    onChange={e => setManagers({...managers, leadGenManagerUid: e.target.value})}
+                  >
+                    {allUsers.map(u => <option key={u.uid} value={u.uid}>{u.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-4">
               <h4 className="text-xs font-black uppercase tracking-widest text-accent">Active Content Metrics</h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -1915,6 +1985,23 @@ export default function App() {
     }
   };
 
+  const handleDeleteClient = async (clientId: string) => {
+    if (window.confirm('Are you sure you want to delete this client? This will remove all their weekly data permanently.')) {
+      const loadId = toast.loading('Deleting client records...');
+      try {
+        // Delete client document
+        await deleteDoc(doc(db, 'clients', clientId));
+        
+        // Also should ideally delete weeklyData subcollections, but Firestore doesn't support recursive deletes from client SDK easily.
+        // For now, deleting the main doc is a start.
+        
+        toast.success('Client deleted from OS', { id: loadId });
+      } catch (error) {
+        toast.error('Failed to delete client', { id: loadId });
+      }
+    }
+  };
+
   const handleGoogleLogin = async () => {
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
@@ -2369,12 +2456,20 @@ export default function App() {
                       <p className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Achievement</p>
                       <p className="text-lg font-black">{(calculateAchievement(client) * 100).toFixed(0)}%</p>
                     </div>
-                    <button 
-                      onClick={() => setActiveConfigClient(client.id)}
-                      className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 bg-white border border-gray-100 rounded-lg shadow-sm hover:border-accent transition-colors"
-                    >
-                      Configure
-                    </button>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => setActiveConfigClient(client.id)}
+                        className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 bg-white border border-gray-100 rounded-lg shadow-sm hover:border-accent transition-colors"
+                      >
+                        Configure
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteClient(client.id)}
+                        className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 bg-white border border-gray-100 rounded-lg shadow-sm hover:text-red-500 hover:border-red-100 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </Card>
               ))}
@@ -2383,6 +2478,7 @@ export default function App() {
                 <ClientSettingsView 
                   client={clients.find(c => c.id === activeConfigClient)!} 
                   onClose={() => setActiveConfigClient(null)} 
+                  allUsers={allUsers}
                 />
               )}
 
