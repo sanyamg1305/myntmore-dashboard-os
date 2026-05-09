@@ -39,20 +39,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // Verify requester
+    console.log('Verifying token...');
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const requesterUid = decodedToken.uid;
+    console.log('Requester UID:', requesterUid);
 
     const requesterDoc = await db.collection('users').doc(requesterUid).get();
-    if (!requesterDoc.exists || requesterDoc.data()?.role !== 'admin') {
+    if (!requesterDoc.exists) {
+      console.warn('Requester profile not found in Firestore:', requesterUid);
+      return res.status(403).json({ error: 'Forbidden: Admin profile not found' });
+    }
+
+    const requesterData = requesterDoc.data();
+    if (requesterData?.role !== 'admin') {
+      console.warn('Requester is not an admin. Role:', requesterData?.role);
       return res.status(403).json({ error: 'Forbidden: Admin access required' });
     }
 
     // Create user
+    console.log('Creating user in Auth:', email);
     const userRecord = await admin.auth().createUser({
       email,
       password,
       displayName,
     });
+
+    console.log('User created in Auth:', userRecord.uid);
 
     // Save to Firestore
     await db.collection('users').doc(userRecord.uid).set({
@@ -67,9 +79,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
+    console.log('Firestore document created for:', userRecord.uid);
     return res.status(200).json({ success: true, uid: userRecord.uid });
   } catch (error: any) {
-    console.error('Error in create-user API:', error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    console.error('CRITICAL Error in create-user API:', error);
+    // If it's a firebase-admin error, it might have a code
+    const message = error.message || 'Internal Server Error';
+    const code = error.code || 'unknown-error';
+    return res.status(500).json({ error: message, code });
   }
 }

@@ -63,7 +63,7 @@ service cloud.firestore {
     }
 
     // Weekly Data — content and lead gen are separate sub-fields
-    match /weeklyData/{clientId}/{year}/{weekNumber} {
+    match /weeklyData/{clientId}/years/{year}/records/{weekNumber} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn();
     }
@@ -75,7 +75,7 @@ service cloud.firestore {
     }
 
     // TJ Personal Brand - Nested structure
-    match /tjPersonalBrand/{year}/{weekId} {
+    match /tjPersonalBrand/{year}/records/{weekId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
@@ -86,7 +86,7 @@ service cloud.firestore {
     }
 
     // Sales Data
-    match /salesData/{year}/{weekId} {
+    match /salesData/{year}/records/{weekId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }

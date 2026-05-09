@@ -917,7 +917,7 @@ const TJPersonalBrandView = ({ userProfile }: { userProfile: UserProfile | null 
 
   const loadData = async () => {
     const year = new Date(selectedWeek).getFullYear().toString();
-    const ref = doc(db, `tjPersonalBrand/${year}`, selectedWeek);
+    const ref = doc(db, `tjPersonalBrand/${year}/records`, selectedWeek);
     const snap = await getDoc(ref);
     setEntryData(snap.exists() ? snap.data() : {});
   };
@@ -935,7 +935,7 @@ const TJPersonalBrandView = ({ userProfile }: { userProfile: UserProfile | null 
     const loadId = toast.loading('Syncing TJ Brand data...');
     try {
       const year = new Date(selectedWeek).getFullYear().toString();
-      const ref = doc(db, `tjPersonalBrand/${year}`, selectedWeek);
+      const ref = doc(db, `tjPersonalBrand/${year}/records`, selectedWeek);
       const weekData = LAST_12_WEEKS.find(w => w.weekStart === selectedWeek);
 
       const payload = {
@@ -1053,7 +1053,7 @@ const SalesOutreachView = ({ userProfile }: { userProfile: UserProfile | null })
 
   const loadData = async () => {
     const year = new Date(selectedWeek).getFullYear().toString();
-    const ref = doc(db, `salesData/${year}`, selectedWeek);
+    const ref = doc(db, `salesData/${year}/records`, selectedWeek);
     const snap = await getDoc(ref);
     setEntryData(snap.exists() ? snap.data() : {});
   };
@@ -1069,7 +1069,7 @@ const SalesOutreachView = ({ userProfile }: { userProfile: UserProfile | null })
     const loadId = toast.loading('Syncing Sales data...');
     try {
       const year = new Date(selectedWeek).getFullYear().toString();
-      const ref = doc(db, `salesData/${year}`, selectedWeek);
+      const ref = doc(db, `salesData/${year}/records`, selectedWeek);
       const weekData = LAST_12_WEEKS.find(w => w.weekStart === selectedWeek);
 
       const payload = {
@@ -2097,11 +2097,11 @@ export default function App() {
       // Listen to weeklyData subcollections
       clientsData.forEach(client => {
         if (!performanceUnsubscribes[client.id]) {
-          const perfQ = query(collection(db, `weeklyData/${client.id}/2026`), orderBy('weekOf', 'asc'));
+          const perfQ = query(collection(db, `weeklyData/${client.id}/years/2026/records`), orderBy('weekOf', 'asc'));
           performanceUnsubscribes[client.id] = onSnapshot(perfQ, (perfSnapshot) => {
             const performance: WeeklyPerformance[] = perfSnapshot.docs.map(d => ({ weekId: d.id, ...d.data() } as any));
             setClients(prev => prev.map(c => c.id === client.id ? { ...c, weeklyPerformance: performance as any } : c));
-          }, (error) => handleFirestoreError(error, OperationType.LIST, `weeklyData/${client.id}/2026`));
+          }, (error) => handleFirestoreError(error, OperationType.LIST, `weeklyData/${client.id}/years/2026/records`));
         }
       });
 
@@ -2233,7 +2233,7 @@ export default function App() {
         const batch = writeBatch(db);
         LAST_12_WEEKS.forEach((week, idx) => {
           const weekId = week.weekStart;
-          const weekRef = doc(db, `weeklyData/${clientRef.id}/2026`, weekId);
+          const weekRef = doc(db, `weeklyData/${clientRef.id}/years/2026/records`, weekId);
           
           const contentMetrics: any = {};
           CONTENT_METRICS_LIST.forEach(m => {
